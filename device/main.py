@@ -467,6 +467,51 @@ async def _serial_task():
             await asyncio.sleep_ms(1)
 
 
+def _button_action():
+    """BOOTSEL press: stop whatever is running, else start the autorun macro."""
+    if macros.player.is_running() or _autorun_handle is not None:
+        return "BUTTON " + _stop_all().replace("\n", "; ")
+    name, _delay, loop = config.get_autorun()
+    if not name:
+        # Nothing to start. Release anyway: with Ctrl-C disabled on the device
+        # this is the only guaranteed way to clear a key stranded by a dropped
+        # connection, and it is a no-op when nothing is held.
+        _release_all()
+        return "BUTTON idle (no autorun macro set) - released all keys"
+    if not macros.exists(name):
+        return "BUTTON autorun macro '{}' not found".format(name)
+    # Started by hand, so skip the boot delay.
+    return "BUTTON " + macros.player.start(name, loop)
+
+
+async def _button_task():
+    """Poll the BOOTSEL button as a physical start/stop.
+
+    Each read blocks interrupts and flash access for
+    MICROPY_HW_BOOTSEL_DELAY_US (8 us). At 20 Hz that is a ~0.02% duty cycle,
+    well clear of anything USB HID timing would notice.
+    """
+    try:
+        import rp2
+
+        rp2.bootsel_button()
+    except (ImportError, AttributeError):
+        return  # not available on this build; feature simply stays off
+    prev = False
+    while True:
+        try:
+            now = bool(rp2.bootsel_button())
+        except Exception:
+            return
+        if now and not prev:  # rising edge; 50 ms poll doubles as debounce
+            try:
+                _respond(_button_action())
+            except Exception as e:
+                _respond("BUTTON ERR " + str(e))
+        prev = now
+        await asyncio.sleep_ms(50)
+
+
 async def _autorun_task(name, delay, loop):
     """Wait out the startup window, then start the configured macro."""
     global _autorun_handle
@@ -508,7 +553,9 @@ async def _main_async():
             pass
 
     # Autorun is deliberately independent of WiFi so the device works
-    # standalone; the delay window is the only way to intervene.
+    # standalone; the delay window and the BOOTSEL button are the ways to
+    # intervene.
+    asyncio.create_task(_button_task())
     _start_autorun()
 
     await _serial_task()

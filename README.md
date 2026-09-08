@@ -132,6 +132,21 @@ That runs `gold1` in a loop 10 seconds after boot. `macro autorun off` disables 
 The delay also gives USB HID time to enumerate on the host; a macro firing
 instantly at boot sends its first keystrokes nowhere.
 
+### BOOTSEL button
+
+The onboard BOOTSEL button doubles as a physical start/stop, so a running macro
+can always be halted without a host, a network, or a power cycle:
+
+| State | Press does |
+|---|---|
+| Macro running | Stops it and releases every held key and button |
+| Autorun waiting out its delay | Cancels it |
+| Idle, autorun configured | Starts that macro immediately, skipping the delay |
+| Idle, no autorun configured | Releases all keys and buttons |
+
+Holding BOOTSEL *while plugging in* still enters UF2 flash mode as usual — that is
+ROM behavior that runs before any of this code, so flashing is unaffected.
+
 ## Project Structure
 
 ```

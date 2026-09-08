@@ -30,6 +30,10 @@ Versions are cut automatically from conventional commit messages by
   with `macro stop` during that window, and `reboot` is rejected inside macro
   bodies — autorun plus a reboot is an unbreakable loop needing a BOOTSEL reflash,
   and Ctrl-C is disabled on the device.
+- The BOOTSEL button acts as a physical start/stop for the autorun macro:
+  stops a running macro, cancels a pending autorun, or starts the configured
+  macro immediately. With Ctrl-C disabled on the device this is the only
+  guaranteed way to halt a macro with no host and no network attached.
 - Macro editor and autorun panel in the web UI.
 - `status` now reports free RAM and filesystem space.
 - `CLAUDE.md` and this changelog.

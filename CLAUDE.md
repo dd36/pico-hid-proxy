@@ -122,6 +122,13 @@ and `macro stop` can always land.
 Invariant: **held keys and buttons must always be released** when a macro stops,
 finishes, or raises. `_Player._run()` does this in a `finally`. Preserve it.
 
+`_button_task()` polls `rp2.bootsel_button()` at 20 Hz as a physical start/stop.
+Each read blocks interrupts and flash access for `MICROPY_HW_BOOTSEL_DELAY_US`
+(8 us in the pinned MicroPython), so the poll interval is a real cost, not a free
+one — do not raise the rate without rechecking that against USB HID timing. The
+task exits quietly if `rp2.bootsel_button` is missing, so the feature degrades
+rather than breaking boot.
+
 Autorun starts a macro after boot independently of WiFi. Safety constraints, all
 deliberate — do not relax them without understanding why they exist:
 
