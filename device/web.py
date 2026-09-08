@@ -40,9 +40,13 @@ select{font-size:15px;padding:8px;width:100%;border:1px solid #333;border-radius
 .row button{flex:1;min-width:80px}
 button.warn{background:#ff6b6b;color:#1a1a2e}
 button.warn:active{background:#c44}
-.chk{display:flex;align-items:center;gap:8px;margin-top:10px;color:#aaa;font-size:14px}
-.chk input{width:auto;margin:0}
-#mstat{margin-top:10px;padding:6px 8px;background:#0d1117;border-radius:4px;font-family:monospace;font-size:13px;color:#7ec8e3}
+.chk{display:flex;align-items:center;gap:8px;margin-top:12px;color:#aaa;font-size:14px}
+.chk label{margin:0}
+input[type=checkbox]{width:16px;height:16px;padding:0;border:none;border-radius:0;background:none;accent-color:#0ff;flex:none}
+.hint{margin:8px 0 0;font-size:13px;color:#7a7a8c;line-height:1.45}
+button.secondary{background:#2a2a4a;color:#c8c8d8}
+button.secondary:active{background:#3a3a5a}
+#mstat,#astat{margin-top:10px;padding:6px 8px;background:#0d1117;border-radius:4px;font-family:monospace;font-size:13px;color:#7ec8e3}
 </style></head><body>
 <h2>Pico HID Proxy</h2>
 <label>Command</label>
@@ -76,18 +80,22 @@ sleep 5000"></textarea>
 <button class="warn" onclick="mstop()">Stop</button>
 <button class="warn" onclick="mdel()">Delete</button>
 </div>
-<div id="mstat">macro: not running</div>
+<div id="mstat">macro: &mdash;</div>
 
 <h3>Autorun on startup</h3>
-<label>Runs the macro named above after the Pico boots, with or without WiFi.</label>
+<p class="hint">Runs a saved macro every time the Pico powers up, with or without WiFi.
+The startup delay is the only window to cancel it &mdash; send <code>macro stop</code>
+during the countdown.</p>
+<label>Macro to run at boot</label>
+<select id="amacro"><option value="">-- none --</option></select>
 <label>Delay (ms, minimum 3000)</label>
 <input id="adelay" type="number" value="5000" min="3000" step="1000">
-<div class="chk"><input type="checkbox" id="aloop"><label for="aloop" style="margin:0">Loop forever</label></div>
+<div class="chk"><input type="checkbox" id="aloop"><label for="aloop">Loop forever</label></div>
 <div class="row">
 <button onclick="aset()">Set autorun</button>
-<button class="warn" onclick="aoff()">Disable</button>
+<button class="secondary" onclick="aoff()">Disable</button>
 </div>
-<div id="astat">autorun: unknown</div>
+<div id="astat">autorun: &mdash;</div>
 
 <details><summary>Command Reference</summary><table>
 <tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">Keyboard</td></tr>
@@ -162,17 +170,32 @@ async function api(cmd){
 function show(j){$('res').textContent=j.ok?j.result:('ERROR: '+(j.error||j.result||'request failed'))}
 async function refreshStatus(){
  const m=await api('macro status');if(m.ok)$('mstat').textContent=m.result;
- const a=await api('macro autorun status');if(a.ok)$('astat').textContent=a.result;
+ const a=await api('macro autorun status');
+ if(!a.ok)return;
+ $('astat').textContent=a.result;
+ // Reflect what the device actually has set, not what was last typed.
+ const hit=a.result.match(/^autorun: '([^']+)' after (\\d+) ms( loop)?/);
+ if(hit){
+  $('amacro').value=hit[1];
+  $('adelay').value=hit[2];
+  $('aloop').checked=!!hit[3];
+ }else{
+  $('amacro').value='';
+ }
 }
 async function mrefresh(){
  const j=await api('macro list');
- const sel=$('mlist'),cur=sel.value;
- sel.innerHTML='<option value="">-- new macro --</option>';
- if(j.ok&&j.result&&j.result.indexOf('no macros')!==0){
-  j.result.split('\\n').forEach(n=>{n=n.trim();if(!n)return;
-   const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o)});
- }
- sel.value=cur;
+ const names=(j.ok&&j.result&&j.result.indexOf('no macros')!==0)
+  ?j.result.split('\\n').map(n=>n.trim()).filter(n=>n):[];
+ fill($('mlist'),names,'-- new macro --');
+ fill($('amacro'),names,'-- none --');
+}
+function fill(sel,names,placeholder){
+ const cur=sel.value;
+ sel.innerHTML='';
+ const p=document.createElement('option');p.value='';p.textContent=placeholder;sel.appendChild(p);
+ names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o)});
+ sel.value=names.indexOf(cur)>=0?cur:'';
 }
 async function mload(){
  const n=$('mlist').value;
@@ -202,8 +225,8 @@ async function mdel(){
  await mrefresh();await refreshStatus();
 }
 async function aset(){
- const n=$('mname').value.trim();
- if(!n){show({ok:false,error:'macro name required'});return}
+ const n=$('amacro').value;
+ if(!n){show({ok:false,error:'pick a macro to run at boot'});return}
  const d=parseInt($('adelay').value)||5000;
  show(await api('macro autorun '+n+' '+d+($('aloop').checked?' loop':'')));
  await refreshStatus();
