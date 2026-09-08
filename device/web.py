@@ -158,6 +158,7 @@ const $ =id=> document.getElementById(id);
 window.onload=async()=>{
  $('token').value=localStorage.getItem('hid_token')||'';
  if($('token').value){await mrefresh();await refreshStatus()}
+ else{$('mstat').textContent='enter the API token above to load macros'}
 };
 async function api(cmd){
  const t=$('token').value;localStorage.setItem('hid_token',t);
@@ -258,6 +259,12 @@ function waitReboot(){
  },2000);
 }
 $('cmd').onkeydown=e=>{if(e.key==='Enter')send()};
+// The token lives in localStorage, which is per-device: a phone opening this
+// page for the first time has none, so nothing would load until a reload.
+$('token').onchange=async()=>{
+ localStorage.setItem('hid_token',$('token').value);
+ if($('token').value){await mrefresh();await refreshStatus()}
+};
 </script></body></html>"""
 
 
