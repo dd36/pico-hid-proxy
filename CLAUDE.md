@@ -29,14 +29,26 @@ python3 host/host.py [PORT]   # interactive serial console; auto-detects the por
 
 ## Testing
 
-There is no test suite in the repo, and device code cannot be imported on CPython
-as-is (`uasyncio`, `machine`, `micropython`, and `usb.device` are MicroPython-only).
+```bash
+python3 tests/test_macros.py    # protocol parsing + macro compilation
+python3 tests/test_player.py    # macro storage + playback
+```
 
-`protocol.py` and `macros.py` are pure logic and *can* be exercised on a desktop by
-stubbing `uasyncio` in `sys.modules` before importing, then adding `device/` to
-`sys.path`. `macros._DIR` can be reassigned to a temp directory to test storage.
-`main.py`, `boot.py`, `web.py`, `wifi.py`, and `hid_device.py` cannot — `main.py`
-calls `main()` at import time and `boot.py` initializes real USB hardware.
+Plain scripts, no framework, no dependencies; each exits non-zero on failure and
+prints one line per assertion.
+
+They work because device code that is pure logic can run on CPython once `uasyncio`
+is stubbed into `sys.modules` before import (`test_player.py` stubs it with real
+`asyncio`, so playback, looping and cancellation are genuinely exercised).
+`macros._DIR` is repointed at a temp directory for storage tests. `main.py`,
+`boot.py`, `web.py`, `wifi.py`, and `hid_device.py` cannot be imported at all —
+`main.py` calls `main()` at import time and `boot.py` initializes real USB hardware,
+so their behavior is only verifiable on device.
+
+Know what this does not cover: anything about the real MicroPython runtime. The
+`/macros` shadowing bug passed every desktop test and still bricked the device to a
+REPL, because the tests repoint `_DIR` and CPython has no frozen-module shadowing.
+Boot behavior needs a flash and a serial capture across the USB re-enumeration.
 
 Syntax-check everything before a build, since a MicroPython syntax error only
 surfaces after a full Docker build and reflash:
@@ -71,8 +83,9 @@ macro player  ─┘
   routes (`GET /`, `GET /health`, `POST /api`). The entire web UI is a single
   frozen `_HTML` string in this file. It calls back into `main._dispatch_from_web`;
   it never imports `main` (which would re-run `main()`).
-- **`macros.py`** stores macros as one text file per macro under `/macros/` on the
-  Pico filesystem and plays them back as an asyncio task.
+- **`macros.py`** stores macros as one text file per macro under `/macros.d/` on
+  the Pico filesystem and plays them back as an asyncio task. The `.d` suffix is
+  load-bearing, see below.
 - **`config.py`** is the only writer of `/config.json`. `save()` rewrites the whole
   file, so do not put frequently-changing data there — that is why macros live in
   their own files.
@@ -86,6 +99,17 @@ in `web.py`. Verify by extracting the constant with `ast` rather than importing:
 ```python
 import ast; t = ast.parse(open("device/web.py").read())
 ```
+
+### Never name an on-device path after a module
+
+`sys.path` on the device is `['', '.frozen', '/lib']`, so **the filesystem root is
+searched before frozen modules**. Any file or directory at `/` whose name matches a
+frozen module shadows it. The macro store was originally `/macros`, which made
+`import macros` resolve to the directory instead of the module — the device dropped
+to a REPL on the first boot after a macro was saved, and only hardware testing found
+it. Hence `/macros.d`. Anything new written to `/` needs an extension or a suffix
+that is not a valid identifier. `main.py` migrates a legacy `/macros` before
+importing the module; that call must stay above `import macros`.
 
 ### Macros
 

@@ -33,9 +33,17 @@ Versions are cut automatically from conventional commit messages by
 - Macro editor and autorun panel in the web UI.
 - `status` now reports free RAM and filesystem space.
 - `CLAUDE.md` and this changelog.
+- `tests/` — desktop test suites for protocol parsing, macro compilation, and
+  macro storage/playback, including a guard against on-device paths shadowing
+  frozen modules.
 
 ### Fixed
 
+- Macros are stored under `/macros.d/` rather than `/macros/`. The filesystem root
+  precedes `.frozen` on `sys.path`, so the `/macros` directory shadowed the frozen
+  `macros` module: saving a single macro made the device fail to start its command
+  loop on every subsequent boot, dropping to a bare REPL. A legacy `/macros` store
+  is migrated automatically on the next boot.
 - API request bodies were capped at 1 KB and read with a single `read()` call,
   which could return short even under the cap. Bodies are now read until
   content-length with a 16 KB cap; previously a multi-line request could be

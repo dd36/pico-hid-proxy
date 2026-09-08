@@ -15,6 +15,46 @@ from boot import keyboard, mouse, abs_mouse
 from protocol import parse, Command, MIN_AUTORUN_DELAY_MS
 import config
 import wifi
+
+
+def _migrate_legacy_macro_dir():
+    """Move a pre-existing /macros store to /macros.d.
+
+    /macros shadowed the frozen `macros` module (sys.path is
+    ['', '.frozen', '/lib'], so the filesystem wins), which dropped the device
+    to a REPL on the first boot after a macro was saved. This must run before
+    `import macros` below.
+    """
+    try:
+        os.stat("/macros")
+    except OSError:
+        return  # nothing to migrate
+    try:
+        os.stat("/macros.d")
+    except OSError:
+        try:
+            os.rename("/macros", "/macros.d")
+        except OSError:
+            pass
+        return
+    # Both exist: move the files across, then drop the shadowing directory.
+    try:
+        names = os.listdir("/macros")
+    except OSError:
+        return
+    for n in names:
+        try:
+            os.rename("/macros/" + n, "/macros.d/" + n)
+        except OSError:
+            pass
+    try:
+        os.rmdir("/macros")
+    except OSError:
+        pass
+
+
+_migrate_legacy_macro_dir()
+
 import macros
 
 

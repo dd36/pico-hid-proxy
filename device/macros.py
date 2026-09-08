@@ -7,7 +7,11 @@ import uasyncio as asyncio
 
 from protocol import parse, valid_macro_name
 
-_DIR = "/macros"
+# NOTE: this must NOT be a valid module name. sys.path is ['', '.frozen', '/lib'],
+# so a directory at the filesystem root shadows the frozen module of the same
+# name -- "/macros" made `import macros` resolve to the directory and dropped
+# the device to a REPL on the first boot after any macro was saved.
+_DIR = "/macros.d"
 _EXT = ".txt"
 
 # Command kinds that must never run from inside a macro.

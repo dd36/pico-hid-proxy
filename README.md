@@ -136,7 +136,7 @@ instantly at boot sends its first keystrokes nowhere.
 
 ```
 device/          MicroPython code that runs on the Pico (frozen into firmware)
-macros/          Saved macros on the Pico filesystem (created on first save)
+macros.d/        Saved macros on the Pico filesystem (created on first save)
 host/            Setup scripts and interactive serial host
 firmware/        Built UF2 firmware output
 input_monitor/   Windows tool to detect real vs emulated input
