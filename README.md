@@ -61,10 +61,82 @@ Response: `{"ok":true,"result":"OK"}`
 
 The `delay` field (in milliseconds) adds a wait before executing the command.
 
+## Macros
+
+Macros are named command sequences stored on the Pico itself, so a sequence keeps
+running with no host connected. Create and edit them in the web UI, or over serial.
+
+A macro is one command per line. Blank lines and `#` comments are ignored, and
+`sleep <ms>` waits between steps:
+
+```
+# gold farm loop
+key down w
+sleep 800
+key up w
+mouse move 120 0
+sleep 300
+key tap space
+sleep 5000
+```
+
+Run it once with `macro run gold1`, or forever with `macro run gold1 loop`.
+`macro stop` ends it and releases every held key and button.
+
+Playback is a background task, so the web UI and serial console stay responsive
+while a macro runs — `macro stop` always lands.
+
+### Creating macros over serial
+
+`macro save <name>` on its own line starts capture. Every following line is
+buffered until you finish with `macro end` (or discard with `macro abort`):
+
+```
+macro save gold1
+key down w
+sleep 800
+key up w
+macro end
+```
+
+Over the API, send the body in the same command with embedded newlines:
+
+```
+curl -X POST http://PICO_IP/api \
+  -H "Content-Type: application/json" \
+  -d '{"cmd":"macro save gold1\nkey down w\nsleep 800\nkey up w","token":"mysecrettoken"}'
+```
+
+Macros are compile-checked when saved, so an unknown key or a malformed `sleep`
+is rejected up front with the offending line number rather than failing halfway
+through a run with keys held down.
+
+### Autorun
+
+The Pico can run a macro automatically on power-up, with no host and no WiFi:
+
+```
+macro autorun gold1 10000 loop
+```
+
+That runs `gold1` in a loop 10 seconds after boot. `macro autorun off` disables it.
+
+> [!WARNING]
+> Autorun means the Pico starts driving the attached machine every time it gets
+> power. The startup delay is your only chance to intervene — Ctrl-C is disabled
+> on the device — so `macro stop` sent during the delay window cancels the
+> pending run. The minimum delay is 3000 ms for this reason, and `reboot` is
+> rejected inside a macro because autorun plus a reboot is an unbreakable loop
+> that needs a BOOTSEL reflash to clear.
+
+The delay also gives USB HID time to enumerate on the host; a macro firing
+instantly at boot sends its first keystrokes nowhere.
+
 ## Project Structure
 
 ```
 device/          MicroPython code that runs on the Pico (frozen into firmware)
+macros/          Saved macros on the Pico filesystem (created on first save)
 host/            Setup scripts and interactive serial host
 firmware/        Built UF2 firmware output
 input_monitor/   Windows tool to detect real vs emulated input
@@ -149,6 +221,23 @@ Type `help` once connected for a list of commands.
 | `mouse scroll <n>` | Scroll (positive = up) |
 | `mouse release` | Release all held buttons |
 
+### Macros
+
+| Command | Description |
+|---|---|
+| `sleep <ms>` | Wait (only valid inside a macro) |
+| `macro save <name>` | Start serial capture, or save a body sent in the same command |
+| `macro end` / `macro abort` | Finish or discard a serial capture |
+| `macro run <name> [loop]` | Run a macro once, or repeat until stopped |
+| `macro stop` | Stop the running macro and cancel a pending autorun |
+| `macro list` | List saved macros |
+| `macro show <name>` | Print a macro body |
+| `macro delete <name>` | Delete a macro |
+| `macro status` | Show what is running |
+| `macro autorun <name> <ms> [loop]` | Run `<name>` `<ms>` after boot (minimum 3000) |
+| `macro autorun off` | Disable autorun |
+| `macro autorun status` | Show the current autorun setting |
+
 ### WiFi
 
 | Command | Description |
@@ -182,7 +271,7 @@ Type `help` once connected for a list of commands.
 | Command | Description |
 |---|---|
 | `ping` | Test connection (returns PONG) |
-| `status` | Show overall system status (wifi, api, webui) |
+| `status` | Show overall system status (wifi, api, webui, memory, storage) |
 | `reboot` | Restart the Pico |
 | `reboot bootloader` | Reboot Pico into BOOTSEL (UF2 flash) mode |
 

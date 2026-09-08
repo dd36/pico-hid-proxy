@@ -30,6 +30,10 @@ def parse(line):
     if verb == "ping":
         return Command("ping")
 
+    if verb == "sleep":
+        return ("sleep: only valid inside a macro "
+                "(use the API 'delay' field for a one-off wait)")
+
     if verb == "status":
         return Command("status")
 
@@ -115,6 +119,10 @@ def parse(line):
             return Command("webui_status")
 
         return "webui: unknown subcommand '{}'".format(sub)
+
+    # --- Macro commands ---
+    if verb == "macro":
+        return _parse_macro(rest)
 
     # --- Keyboard commands ---
     if verb == "key":
@@ -261,6 +269,141 @@ def parse(line):
         return "mouse: unknown subcommand '{}'".format(sub)
 
     return "unknown command '{}'".format(verb)
+
+
+def _one_name(arg, ctx):
+    """Return (name, None) or (None, error). Rejects extra tokens outright so
+    'macro save bad name' fails loudly instead of quietly saving as 'bad'."""
+    parts = arg.split()
+    if not parts:
+        return None, "{}: missing name".format(ctx)
+    if len(parts) > 1:
+        return None, "{}: unexpected extra argument '{}' (names cannot contain spaces)".format(
+            ctx, parts[1])
+    if not valid_macro_name(parts[0]):
+        return None, "{}: invalid name '{}' (letters, digits, - and _ only, max {} chars)".format(
+            ctx, parts[0], _MAX_NAME_LEN)
+    return parts[0], None
+
+
+def _parse_macro(rest):
+    """Parse a 'macro ...' command.
+
+    'macro save <name>' followed by newline-separated body lines saves
+    immediately (the web/API path). 'macro save <name>' alone begins
+    line-by-line capture over serial, ended with 'macro end'.
+    """
+    if not rest:
+        return ("macro: missing subcommand "
+                "(save/end/abort/run/stop/list/show/delete/status/autorun)")
+
+    nl = rest.find("\n")
+    if nl == -1:
+        head, body = rest, None
+    else:
+        head, body = rest[:nl], rest[nl + 1 :]
+
+    hparts = head.split(None, 1)
+    sub = hparts[0].lower()
+    arg = hparts[1].strip() if len(hparts) > 1 else ""
+
+    if sub == "save":
+        name, err = _one_name(arg, "macro save")
+        if err:
+            return err
+        if body is None:
+            return Command("macro_capture_begin", {"name": name})
+        return Command("macro_save", {"name": name, "body": body})
+
+    if sub == "end":
+        return Command("macro_capture_end")
+
+    if sub == "abort":
+        return Command("macro_capture_abort")
+
+    if sub == "run":
+        args = arg.split()
+        if not args:
+            return "macro run: missing name"
+        if not valid_macro_name(args[0]):
+            return "macro run: invalid name '{}'".format(args[0])
+        loop = False
+        if len(args) > 1:
+            if args[1].lower() != "loop":
+                return "macro run: unknown option '{}' (loop)".format(args[1])
+            loop = True
+        return Command("macro_run", {"name": args[0], "loop": loop})
+
+    if sub == "stop":
+        return Command("macro_stop")
+
+    if sub == "list":
+        return Command("macro_list")
+
+    if sub == "status":
+        return Command("macro_status")
+
+    if sub == "show":
+        name, err = _one_name(arg, "macro show")
+        if err:
+            return err
+        return Command("macro_show", {"name": name})
+
+    if sub == "delete":
+        name, err = _one_name(arg, "macro delete")
+        if err:
+            return err
+        return Command("macro_delete", {"name": name})
+
+    if sub == "autorun":
+        args = arg.split()
+        if not args or args[0].lower() == "status":
+            return Command("macro_autorun_status")
+        if args[0].lower() == "off":
+            return Command("macro_autorun_off")
+
+        name = args[0]
+        if not valid_macro_name(name):
+            return "macro autorun: invalid name '{}'".format(name)
+        if len(args) < 2:
+            return "macro autorun: need <name> <delay_ms> [loop]"
+        try:
+            delay = int(args[1])
+        except ValueError:
+            return "macro autorun: delay must be an integer (ms)"
+        if delay < MIN_AUTORUN_DELAY_MS:
+            return ("macro autorun: delay must be >= {} ms "
+                    "(startup window to send 'macro stop')".format(
+                        MIN_AUTORUN_DELAY_MS))
+        loop = False
+        if len(args) > 2:
+            if args[2].lower() != "loop":
+                return "macro autorun: unknown option '{}' (loop)".format(args[2])
+            loop = True
+        return Command("macro_autorun_set",
+                       {"name": name, "delay": delay, "loop": loop})
+
+    return ("macro: unknown subcommand '{}' "
+            "(save/end/abort/run/stop/list/show/delete/status/autorun)".format(sub))
+
+
+# Minimum autorun delay. Ctrl-C is disabled on the device
+# (micropython.kbd_intr(-1) in main.py), so this startup window is the only
+# chance to send "macro stop" before an autorun macro takes over the console.
+MIN_AUTORUN_DELAY_MS = 3000
+
+_NAME_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+_MAX_NAME_LEN = 24
+
+
+def valid_macro_name(name):
+    """Macro names become filenames, so keep them short and path-safe."""
+    if not name or len(name) > _MAX_NAME_LEN:
+        return False
+    for ch in name:
+        if ch not in _NAME_CHARS:
+            return False
+    return True
 
 
 # Mouse button name -> bit mask

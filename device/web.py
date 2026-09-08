@@ -4,6 +4,10 @@
 import json
 import uasyncio as asyncio
 
+# Max request body. Macro bodies arrive here, so this must be well above
+# the old 1 KB cap or multi-line macros get silently truncated.
+_MAX_BODY = 16384
+
 _dispatch_fn = None
 _web_password = None
 _api_enabled = False
@@ -28,6 +32,17 @@ summary{cursor:pointer;color:#0ff;font-size:14px}
 table{width:100%;border-collapse:collapse;margin-top:6px}
 td{padding:3px 6px;border-bottom:1px solid #222;font-family:monospace;font-size:12px}
 td:first-child{color:#7ec8e3;white-space:nowrap}
+h3{color:#0ff;margin:22px 0 0;font-size:16px;border-top:1px solid #2a2a4a;padding-top:16px}
+textarea{font-size:14px;padding:8px;width:100%;border:1px solid #333;border-radius:4px;background:#16213e;color:#e0e0e0;font-family:monospace;resize:vertical}
+textarea:focus,select:focus{outline:none;border-color:#0ff}
+select{font-size:15px;padding:8px;width:100%;border:1px solid #333;border-radius:4px;background:#16213e;color:#e0e0e0}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row button{flex:1;min-width:80px}
+button.warn{background:#ff6b6b;color:#1a1a2e}
+button.warn:active{background:#c44}
+.chk{display:flex;align-items:center;gap:8px;margin-top:10px;color:#aaa;font-size:14px}
+.chk input{width:auto;margin:0}
+#mstat{margin-top:10px;padding:6px 8px;background:#0d1117;border-radius:4px;font-family:monospace;font-size:13px;color:#7ec8e3}
 </style></head><body>
 <h2>Pico HID Proxy</h2>
 <label>Command</label>
@@ -38,6 +53,42 @@ td:first-child{color:#7ec8e3;white-space:nowrap}
 <input id="token" type="password" placeholder="Set via: api token <value>">
 <button onclick="send()">Execute</button>
 <div id="res"></div>
+
+<h3>Macros</h3>
+<label>Saved macros</label>
+<select id="mlist" onchange="mload()"><option value="">-- new macro --</option></select>
+<label>Name</label>
+<input id="mname" placeholder="gold1">
+<label>Steps (one command per line, use <code>sleep &lt;ms&gt;</code> to wait)</label>
+<textarea id="mbody" rows="9" spellcheck="false" placeholder="key down w
+sleep 800
+key up w
+mouse move 120 0
+sleep 300
+key tap space
+sleep 5000"></textarea>
+<div class="row">
+<button onclick="msave()">Save</button>
+<button onclick="mrun(false)">Run</button>
+<button onclick="mrun(true)">Loop</button>
+</div>
+<div class="row">
+<button class="warn" onclick="mstop()">Stop</button>
+<button class="warn" onclick="mdel()">Delete</button>
+</div>
+<div id="mstat">macro: not running</div>
+
+<h3>Autorun on startup</h3>
+<label>Runs the macro named above after the Pico boots, with or without WiFi.</label>
+<label>Delay (ms, minimum 3000)</label>
+<input id="adelay" type="number" value="5000" min="3000" step="1000">
+<div class="chk"><input type="checkbox" id="aloop"><label for="aloop" style="margin:0">Loop forever</label></div>
+<div class="row">
+<button onclick="aset()">Set autorun</button>
+<button class="warn" onclick="aoff()">Disable</button>
+</div>
+<div id="astat">autorun: unknown</div>
+
 <details><summary>Command Reference</summary><table>
 <tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">Keyboard</td></tr>
 <tr><td>key tap &lt;name&gt;</td><td>Press &amp; release key</td></tr>
@@ -54,6 +105,19 @@ td:first-child{color:#7ec8e3;white-space:nowrap}
 <tr><td>mouse up &lt;btn&gt;</td><td>Release mouse button</td></tr>
 <tr><td>mouse scroll &lt;n&gt;</td><td>Scroll wheel (+ up, - down)</td></tr>
 <tr><td>mouse release</td><td>Release all held buttons</td></tr>
+<tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">Macros</td></tr>
+<tr><td>sleep &lt;ms&gt;</td><td>Wait (only valid inside a macro)</td></tr>
+<tr><td>macro save &lt;name&gt;</td><td>Save; body follows on later lines</td></tr>
+<tr><td>macro end / abort</td><td>Finish or cancel serial capture</td></tr>
+<tr><td>macro run &lt;name&gt; [loop]</td><td>Run a macro, optionally forever</td></tr>
+<tr><td>macro stop</td><td>Stop macro, cancel pending autorun</td></tr>
+<tr><td>macro list</td><td>List saved macros</td></tr>
+<tr><td>macro show &lt;name&gt;</td><td>Print a macro body</td></tr>
+<tr><td>macro delete &lt;name&gt;</td><td>Delete a macro</td></tr>
+<tr><td>macro status</td><td>Show what is running</td></tr>
+<tr><td>macro autorun &lt;n&gt; &lt;ms&gt; [loop]</td><td>Run &lt;n&gt; &lt;ms&gt; after boot</td></tr>
+<tr><td>macro autorun off</td><td>Disable autorun</td></tr>
+<tr><td>macro autorun status</td><td>Show autorun setting</td></tr>
 <tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">WiFi</td></tr>
 <tr><td>wifi set &lt;ssid&gt; &lt;pass&gt;</td><td>Save WiFi credentials</td></tr>
 <tr><td>wifi get</td><td>Show saved credentials</td></tr>
@@ -70,7 +134,7 @@ td:first-child{color:#7ec8e3;white-space:nowrap}
 <tr><td>webui status</td><td>Show web UI enabled state</td></tr>
 <tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">System</td></tr>
 <tr><td>ping</td><td>Connection test</td></tr>
-<tr><td>status</td><td>Show overall system status</td></tr>
+<tr><td>status</td><td>Show system status, free RAM &amp; flash</td></tr>
 <tr><td>reboot</td><td>Restart the Pico</td></tr>
 <tr><td>reboot bootloader</td><td>Reboot into BOOTSEL mode</td></tr>
 </table></details>
@@ -83,7 +147,68 @@ td:first-child{color:#7ec8e3;white-space:nowrap}
 </details>
 <script>
 const $ =id=> document.getElementById(id);
-window.onload=()=>{$('token').value=localStorage.getItem('hid_token')||''};
+window.onload=async()=>{
+ $('token').value=localStorage.getItem('hid_token')||'';
+ if($('token').value){await mrefresh();await refreshStatus()}
+};
+async function api(cmd){
+ const t=$('token').value;localStorage.setItem('hid_token',t);
+ try{
+  const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({cmd:cmd,delay:0,token:t})});
+  return await r.json();
+ }catch(e){return {ok:false,error:e.message}}
+}
+function show(j){$('res').textContent=j.ok?j.result:('ERROR: '+(j.error||j.result||'request failed'))}
+async function refreshStatus(){
+ const m=await api('macro status');if(m.ok)$('mstat').textContent=m.result;
+ const a=await api('macro autorun status');if(a.ok)$('astat').textContent=a.result;
+}
+async function mrefresh(){
+ const j=await api('macro list');
+ const sel=$('mlist'),cur=sel.value;
+ sel.innerHTML='<option value="">-- new macro --</option>';
+ if(j.ok&&j.result&&j.result.indexOf('no macros')!==0){
+  j.result.split('\\n').forEach(n=>{n=n.trim();if(!n)return;
+   const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o)});
+ }
+ sel.value=cur;
+}
+async function mload(){
+ const n=$('mlist').value;
+ if(!n){$('mname').value='';$('mbody').value='';return}
+ $('mname').value=n;
+ const j=await api('macro show '+n);
+ if(j.ok){$('mbody').value=j.result}else{show(j)}
+}
+async function msave(){
+ const n=$('mname').value.trim();
+ if(!n){show({ok:false,error:'macro name required'});return}
+ show(await api('macro save '+n+'\\n'+$('mbody').value));
+ await mrefresh();$('mlist').value=n;await refreshStatus();
+}
+async function mrun(loop){
+ const n=$('mname').value.trim();
+ if(!n){show({ok:false,error:'macro name required'});return}
+ show(await api('macro run '+n+(loop?' loop':'')));
+ await refreshStatus();
+}
+async function mstop(){show(await api('macro stop'));await refreshStatus()}
+async function mdel(){
+ const n=$('mname').value.trim();if(!n)return;
+ if(!confirm('Delete macro "'+n+'"?'))return;
+ show(await api('macro delete '+n));
+ $('mname').value='';$('mbody').value='';$('mlist').value='';
+ await mrefresh();await refreshStatus();
+}
+async function aset(){
+ const n=$('mname').value.trim();
+ if(!n){show({ok:false,error:'macro name required'});return}
+ const d=parseInt($('adelay').value)||5000;
+ show(await api('macro autorun '+n+' '+d+($('aloop').checked?' loop':'')));
+ await refreshStatus();
+}
+async function aoff(){show(await api('macro autorun off'));await refreshStatus()}
 async function send(){
  const t=$('token').value;localStorage.setItem('hid_token',t);
  const cmd=$('cmd').value;
@@ -211,9 +336,17 @@ async def _handle_client(reader, writer):
 
             body = b""
             if content_length > 0:
-                body = await asyncio.wait_for(
-                    reader.read(min(content_length, 1024)), timeout=5
-                )
+                remaining = min(content_length, _MAX_BODY)
+                chunks = []
+                while remaining > 0:
+                    chunk = await asyncio.wait_for(
+                        reader.read(remaining), timeout=5
+                    )
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    remaining -= len(chunk)
+                body = b"".join(chunks)
 
             try:
                 data = json.loads(body)

@@ -5,14 +5,17 @@
 import sys
 import time
 import select
+import gc
+import os
 import machine
 import micropython
 import uasyncio as asyncio
 
 from boot import keyboard, mouse, abs_mouse
-from protocol import parse, Command
+from protocol import parse, Command, MIN_AUTORUN_DELAY_MS
 import config
 import wifi
+import macros
 
 
 def _respond(msg):
@@ -22,9 +25,83 @@ def _respond(msg):
 
 _web_server_started = False
 
+# Serial macro capture state: {"name": str, "lines": [str]} while capturing.
+_capture = None
+
+# Handle for a pending autorun task during its startup delay.
+_autorun_handle = None
+
+
+def _release_all():
+    """Release every held key and mouse button."""
+    keyboard.release_all()
+    mouse.release_all()
+
+
+def _save_macro(name, body):
+    """Compile-check then persist a macro. Returns a response string."""
+    steps = macros.compile_body(body)
+    if isinstance(steps, str):
+        return "ERR macro '{}' {}".format(name, steps)
+    if not steps:
+        return "ERR macro '{}' is empty (no runnable commands)".format(name)
+    try:
+        macros.save(name, body)
+    except OSError as e:
+        return "ERR macro save failed: {}".format(e)
+    return "OK macro '{}' saved ({} steps)".format(name, len(steps))
+
+
+def _stop_all():
+    """Stop a running macro and cancel any autorun still in its delay window."""
+    global _autorun_handle
+    msgs = []
+    if _autorun_handle is not None:
+        _autorun_handle.cancel()
+        _autorun_handle = None
+        msgs.append("OK autorun cancelled")
+    msgs.append(macros.player.stop())
+    return "\n".join(msgs)
+
+
+def _capture_feed(line):
+    """Consume one serial line during macro capture. Returns a reply or None."""
+    global _capture
+    low = line.strip().lower()
+    if low == "macro end":
+        name = _capture["name"]
+        body = "\n".join(_capture["lines"])
+        _capture = None
+        return _save_macro(name, body)
+    if low == "macro abort":
+        name = _capture["name"]
+        _capture = None
+        return "OK capture of '{}' aborted".format(name)
+    _capture["lines"].append(line.rstrip())
+    return None
+
+
+def _resource_lines():
+    """Return status lines for free RAM and filesystem space."""
+    gc.collect()
+    free = gc.mem_free()
+    total = free + gc.mem_alloc()
+    lines = ["mem: {} B free / {} B total".format(free, total)]
+    try:
+        st = os.statvfs("/")
+        frsize = st[1]
+        fs_total = st[2] * frsize
+        fs_free = st[3] * frsize
+        lines.append("flash: {} KB free / {} KB total".format(
+            fs_free // 1024, fs_total // 1024))
+    except OSError:
+        lines.append("flash: unavailable")
+    return lines
+
 
 def _dispatch(cmd, from_web=False):
     """Execute a parsed command. Returns response string."""
+    global _capture
     k = cmd.kind
     p = cmd.params
 
@@ -140,6 +217,14 @@ def _dispatch(cmd, from_web=False):
         lines.append("webui: {} ({})".format(
             "enabled" if webui_on else "disabled",
             "running" if webui_running else "stopped"))
+        lines.append(macros.player.status())
+        auto_name, auto_delay, auto_loop = config.get_autorun()
+        if auto_name:
+            lines.append("autorun: '{}' after {} ms{}".format(
+                auto_name, auto_delay, " loop" if auto_loop else ""))
+        else:
+            lines.append("autorun: disabled")
+        lines.extend(_resource_lines())
         return "\n".join(lines)
 
     # Keyboard
@@ -184,6 +269,72 @@ def _dispatch(cmd, from_web=False):
     if k == "mouse_release":
         mouse.release_all()
         return "OK"
+
+    # Macros
+    if k == "macro_capture_begin":
+        if from_web:
+            return "ERR macro save over the API must include the body in the same command"
+        if _capture is not None:
+            return "ERR already capturing '{}' (macro end / macro abort)".format(
+                _capture["name"])
+        if macros.player.is_running():
+            return "ERR a macro is running (macro stop first)"
+        _capture = {"name": p["name"], "lines": []}
+        return "OK capturing '{}' - finish with 'macro end' (or 'macro abort')".format(
+            p["name"])
+    if k == "macro_capture_end" or k == "macro_capture_abort":
+        return "ERR not capturing (start with 'macro save <name>')"
+    if k == "macro_save":
+        if macros.player.is_running() and macros.player.name == p["name"]:
+            return "ERR macro '{}' is running (macro stop first)".format(p["name"])
+        return _save_macro(p["name"], p["body"])
+    if k == "macro_run":
+        return macros.player.start(p["name"], p["loop"])
+    if k == "macro_stop":
+        return _stop_all()
+    if k == "macro_status":
+        return macros.player.status()
+    if k == "macro_list":
+        names = macros.list_names()
+        return "\n".join(names) if names else "no macros saved"
+    if k == "macro_show":
+        if not macros.exists(p["name"]):
+            return "ERR macro '{}' not found".format(p["name"])
+        try:
+            return macros.load(p["name"])
+        except OSError as e:
+            return "ERR macro read failed: {}".format(e)
+    if k == "macro_delete":
+        name = p["name"]
+        if not macros.exists(name):
+            return "ERR macro '{}' not found".format(name)
+        if macros.player.is_running() and macros.player.name == name:
+            return "ERR macro '{}' is running (macro stop first)".format(name)
+        try:
+            macros.delete(name)
+        except OSError as e:
+            return "ERR macro delete failed: {}".format(e)
+        auto_name, _, _ = config.get_autorun()
+        if auto_name == name:
+            config.clear_autorun()
+            return "OK macro '{}' deleted (autorun cleared)".format(name)
+        return "OK macro '{}' deleted".format(name)
+    if k == "macro_autorun_set":
+        if not macros.exists(p["name"]):
+            return "ERR macro '{}' not found".format(p["name"])
+        config.set_autorun(p["name"], p["delay"], p["loop"])
+        return "OK autorun '{}' after {} ms{}".format(
+            p["name"], p["delay"], " (loop)" if p["loop"] else "")
+    if k == "macro_autorun_off":
+        config.clear_autorun()
+        return "OK autorun disabled"
+    if k == "macro_autorun_status":
+        name, delay, loop = config.get_autorun()
+        if not name:
+            return "autorun: disabled"
+        missing = "" if macros.exists(name) else "  [macro not found]"
+        return "autorun: '{}' after {} ms{}{}".format(
+            name, delay, " loop" if loop else "", missing)
 
     return "ERR unknown command kind"
 
@@ -247,6 +398,13 @@ async def _serial_task():
                         continue
                     buf = bytearray()
 
+                    if _capture is not None:
+                        resp = _capture_feed(line)
+                        if resp is not None:
+                            _respond(resp)
+                        await asyncio.sleep_ms(0)
+                        continue
+
                     if not line.strip():
                         await asyncio.sleep_ms(0)
                         continue
@@ -269,8 +427,34 @@ async def _serial_task():
             await asyncio.sleep_ms(1)
 
 
+async def _autorun_task(name, delay, loop):
+    """Wait out the startup window, then start the configured macro."""
+    global _autorun_handle
+    _respond("AUTORUN '{}' in {} ms (send 'macro stop' to cancel)".format(
+        name, delay))
+    await asyncio.sleep_ms(delay)
+    _autorun_handle = None
+    _respond(macros.player.start(name, loop))
+
+
+def _start_autorun():
+    """Schedule the autorun macro. Runs whether or not WiFi came up."""
+    global _autorun_handle
+    name, delay, loop = config.get_autorun()
+    if not name:
+        return
+    if not macros.exists(name):
+        _respond("AUTORUN skipped (macro '{}' not found)".format(name))
+        return
+    if delay < MIN_AUTORUN_DELAY_MS:
+        delay = MIN_AUTORUN_DELAY_MS
+    _autorun_handle = asyncio.create_task(_autorun_task(name, delay, loop))
+
+
 async def _main_async():
     """Connect WiFi if configured, start web server, run serial loop."""
+    macros.player.bind(_dispatch, _respond, _release_all)
+
     ssid, password = config.get_wifi()
     if ssid and password:
         try:
@@ -282,6 +466,10 @@ async def _main_async():
                 _respond("WIFI " + msg)
         except Exception:
             pass
+
+    # Autorun is deliberately independent of WiFi so the device works
+    # standalone; the delay window is the only way to intervene.
+    _start_autorun()
 
     await _serial_task()
 

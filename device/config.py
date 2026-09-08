@@ -66,3 +66,29 @@ def set_webui_enabled(val):
     cfg = load()
     cfg["webui_enabled"] = bool(val)
     save(cfg)
+
+
+def get_autorun():
+    """Return (macro_name, delay_ms, loop). name is None when disabled."""
+    cfg = load()
+    return (
+        cfg.get("autorun_macro"),
+        cfg.get("autorun_delay", 5000),
+        cfg.get("autorun_loop", False),
+    )
+
+
+def set_autorun(name, delay_ms, loop):
+    cfg = load()
+    cfg["autorun_macro"] = name
+    cfg["autorun_delay"] = int(delay_ms)
+    cfg["autorun_loop"] = bool(loop)
+    save(cfg)
+
+
+def clear_autorun():
+    cfg = load()
+    cfg.pop("autorun_macro", None)
+    cfg.pop("autorun_delay", None)
+    cfg.pop("autorun_loop", None)
+    save(cfg)

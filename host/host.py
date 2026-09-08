@@ -66,6 +66,7 @@ def main():
     print(f"NOTE: HID commands (key/mouse) send input to the focused window.")
     print(f"      Focus a target window when testing HID commands.\n")
 
+    capturing = False
     stop = threading.Event()
     t = threading.Thread(target=reader_thread, args=(ser, stop), daemon=True)
     t.start()
@@ -79,6 +80,14 @@ def main():
 
             if cmd.strip().lower() in ("quit", "exit"):
                 break
+
+            # While capturing a macro the Pico buffers lines verbatim, so skip
+            # the send countdown and pass key/mouse lines straight through.
+            low = cmd.strip().lower()
+            if low.startswith("macro save") and len(low.split()) == 3:
+                capturing = True
+            elif low in ("macro end", "macro abort"):
+                capturing = False
 
             if cmd.strip().lower() == "help":
                 print("""
@@ -98,6 +107,19 @@ Mouse:
   mouse up <btn>        - Release button
   mouse scroll <n>      - Scroll (positive=up, e.g. mouse scroll -3)
   mouse release         - Release all held buttons
+
+Macros:
+  sleep <ms>            - Wait (only valid inside a macro)
+  macro save <name>     - Start capture; end with 'macro end' or 'macro abort'
+  macro run <n> [loop]  - Run a macro once, or repeat until stopped
+  macro stop            - Stop the macro, cancel a pending autorun
+  macro list            - List saved macros
+  macro show <name>     - Print a macro body
+  macro delete <name>   - Delete a macro
+  macro status          - Show what is running
+  macro autorun <n> <ms> [loop]  - Run <n> <ms> after boot (min 3000)
+  macro autorun off     - Disable autorun
+  macro autorun status  - Show autorun setting
 
 WiFi:
   wifi set <ssid> <pw>  - Save WiFi credentials
@@ -120,7 +142,7 @@ WebUI:
 
 System:
   ping                  - Test connection (expect PONG)
-  status                - Show overall system status
+  status                - Show overall system status (incl. free RAM/flash)
   reboot                - Restart the Pico
   reboot bootloader     - Reboot Pico into BOOTSEL mode
   quit / exit           - Close this script
@@ -133,7 +155,7 @@ System:
             # Keyboard commands type into the focused window — give user
             # time to Alt-Tab to a target window first.
             verb = cmd.strip().split()[0].lower()
-            if verb in ("key", "mouse", "reboot"):
+            if verb in ("key", "mouse", "reboot") and not capturing:
                 delay = 3
                 for i in range(delay, 0, -1):
                     print(f"  Sending in {i}... (Alt-Tab to target window)", end="\r")
