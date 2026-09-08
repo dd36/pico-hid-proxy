@@ -139,6 +139,23 @@ deliberate — do not relax them without understanding why they exist:
 - `reboot` and nested `macro_*` commands are rejected inside macro bodies. Autorun
   plus `reboot` is an unbreakable boot loop that requires a BOOTSEL reflash to clear.
 
+### hid_device state, and one inconsistency in it
+
+`KeyboardHID` keeps a modifier byte plus a list of at most 6 held keycodes and
+rebuilds the whole 8-byte report on every change. Two behaviors surprise people:
+
+- `key_down` **silently drops the 7th key** (`if len(self._keys) < 6`). The command
+  still returns `OK`, so an over-chorded macro fails invisibly.
+- `type_chars` **does not preserve held keys** — it assigns `self._keys = [code]`
+  per character and `[]` at the end, so `key type` releases anything being held.
+  Every other keyboard method mutates the held set incrementally. If you change
+  this, note that `key type` currently relies on that reset for correct repeated
+  characters.
+
+`MouseHID` keeps a button bitmask and chords correctly. `move()` chunks anything
+past ±127 per axis into several reports; that loop is the least-exercised code in
+the firmware, which is what `tests/` and the soak macro in the README target.
+
 ### Adding a command
 
 Follow the existing `category_action` naming (`key tap`, `macro autorun`). Touch all

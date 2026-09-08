@@ -5,3 +5,4 @@ firmware/*.uf2
 .claude/
 __pycache__/
 *.pyc
+.DS_Store

@@ -111,6 +111,33 @@ Macros are compile-checked when saved, so an unknown key or a malformed `sleep`
 is rejected up front with the offending line number rather than failing halfway
 through a run with keys held down.
 
+### Writing macros: HID limits worth knowing
+
+**Up to 6 keys at once, and the 7th is silently dropped.** Standard boot-protocol
+rollover. Modifiers (`shift`, `ctrl`, `alt`, `gui`) are held in a separate byte and
+do *not* count against those six, so `key down shift` costs nothing. A macro that
+over-chords still returns `OK` — the extra key simply never registers.
+
+**`key type` releases every held key.** It rewrites the whole keyboard report per
+character and clears it at the end, so this does not do what it looks like:
+
+```
+key down w
+key type hello     # w is released here
+key up w           # no-op, w was already gone
+```
+
+Use `key tap` per character if you need to type while a key is held — that adds to
+the held set instead of replacing it.
+
+**Mouse buttons chord freely.** Left, right and middle are bits in one mask, so any
+combination can be held at once, and `mouse release` clears all of them. Keyboard
+and mouse are separate HID interfaces, so holding keys while dragging is fine.
+
+**Mouse deltas are signed bytes.** Anything beyond ±127 per axis is split into
+multiple reports automatically, so `mouse move 400 400` is valid — it just becomes
+several reports rather than one.
+
 ### Autorun
 
 The Pico can run a macro automatically on power-up, with no host and no WiFi:
@@ -286,7 +313,7 @@ Type `help` once connected for a list of commands.
 | Command | Description |
 |---|---|
 | `ping` | Test connection (returns PONG) |
-| `status` | Show overall system status (wifi, api, webui, memory, storage) |
+| `status` | Show overall system status (wifi, api, webui, macro, autorun, memory, storage) |
 | `reboot` | Restart the Pico |
 | `reboot bootloader` | Reboot Pico into BOOTSEL (UF2 flash) mode |
 

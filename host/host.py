@@ -141,6 +141,7 @@ WebUI:
   webui status          - Show web UI enabled state
 
 System:
+  (BOOTSEL button)      - Physical start/stop for the autorun macro
   ping                  - Test connection (expect PONG)
   status                - Show overall system status (incl. free RAM/flash)
   reboot                - Restart the Pico
