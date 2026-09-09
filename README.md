@@ -80,6 +80,22 @@ key tap space
 sleep 5000
 ```
 
+`repeat <n>` ... `end` runs a block n times without writing it out by hand:
+
+```
+repeat 20
+key down w
+sleep 800
+key up w
+sleep 5000
+end
+key tap space
+```
+
+Blocks are expanded when the macro is compiled, so they cost nothing at run time
+and a typo inside one still fails at save time with its line number. Blocks cannot
+be nested, and a macro cannot expand past 4000 steps.
+
 Run it once with `macro run gold1`, or forever with `macro run gold1 loop`.
 `macro stop` ends it and releases every held key and button.
 
@@ -268,6 +284,7 @@ Type `help` once connected for a list of commands.
 | Command | Description |
 |---|---|
 | `sleep <ms>` | Wait (only valid inside a macro) |
+| `repeat <n>` … `end` | Repeat a block n times (macro only, no nesting) |
 | `macro save <name>` | Start serial capture, or save a body sent in the same command |
 | `macro end` / `macro abort` | Finish or discard a serial capture |
 | `macro run <name> [loop]` | Run a macro once, or repeat until stopped |

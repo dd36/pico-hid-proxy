@@ -119,6 +119,12 @@ number instead of mid-run with keys held down. The player yields
 (`await asyncio.sleep_ms(0)`) between steps so the HTTP server stays responsive
 and `macro stop` can always land.
 
+`repeat <n>` / `end` is expanded inline by `compile_body()`, so the player never
+sees it — it still walks a flat step list. That is deliberate: nesting or a runtime
+loop would need a call stack and would complicate stop semantics for no gain. Since
+expansion happens at compile time, a large count costs RAM rather than failing at
+run time, hence `_MAX_STEPS` and `_MAX_REPEAT` in `macros.py`.
+
 Invariant: **held keys and buttons must always be released** when a macro stops,
 finishes, or raises. `_Player._run()` does this in a `finally`. Preserve it.
 

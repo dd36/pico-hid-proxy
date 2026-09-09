@@ -110,6 +110,7 @@ Mouse:
 
 Macros:
   sleep <ms>            - Wait (only valid inside a macro)
+  repeat <n> ... end    - Repeat a block n times (macro only)
   macro save <name>     - Start capture; end with 'macro end' or 'macro abort'
   macro run <n> [loop]  - Run a macro once, or repeat until stopped
   macro stop            - Stop the macro, cancel a pending autorun

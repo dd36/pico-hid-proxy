@@ -23,6 +23,11 @@ _FORBIDDEN = ("reboot", "reboot_bootloader")
 _SLEEP = 0
 _CMD = 1
 
+# repeat blocks expand inline at compile time, so a runaway count would eat RAM
+# rather than being caught at runtime. Cap the expanded program instead.
+_MAX_STEPS = 4000
+_MAX_REPEAT = 1000
+
 
 def _path(name):
     return _DIR + "/" + name + _EXT
@@ -77,6 +82,11 @@ def compile_body(body):
     """
     steps = []
     lineno = 0
+    # repeat block state: None when not inside one
+    rep_count = None
+    rep_steps = None
+    rep_line = 0
+
     for raw in body.split("\n"):
         lineno += 1
         line = raw.strip()
@@ -84,7 +94,43 @@ def compile_body(body):
             continue
 
         parts = line.split(None, 1)
-        if parts[0].lower() == "sleep":
+        verb = parts[0].lower()
+
+        if verb == "repeat":
+            if rep_count is not None:
+                return "line {}: repeat cannot be nested".format(lineno)
+            if len(parts) < 2 or not parts[1].strip():
+                return "line {}: repeat needs <count>".format(lineno)
+            try:
+                n = int(parts[1].strip())
+            except ValueError:
+                return "line {}: repeat count must be an integer".format(lineno)
+            if n < 1 or n > _MAX_REPEAT:
+                return "line {}: repeat count must be 1-{}".format(lineno, _MAX_REPEAT)
+            rep_count = n
+            rep_steps = []
+            rep_line = lineno
+            continue
+
+        if verb == "end":
+            if rep_count is None:
+                return "line {}: 'end' without a matching 'repeat'".format(lineno)
+            if not rep_steps:
+                return "line {}: repeat block is empty".format(lineno)
+            total = len(steps) + len(rep_steps) * rep_count
+            if total > _MAX_STEPS:
+                return ("line {}: repeat expands to {} steps, over the {} limit"
+                        .format(lineno, total, _MAX_STEPS))
+            for _ in range(rep_count):
+                steps.extend(rep_steps)
+            rep_count = None
+            rep_steps = None
+            continue
+
+        # Inside a repeat block, steps accumulate instead of emitting directly.
+        out = rep_steps if rep_count is not None else steps
+
+        if verb == "sleep":
             if len(parts) < 2 or not parts[1].strip():
                 return "line {}: sleep needs <ms>".format(lineno)
             try:
@@ -93,7 +139,7 @@ def compile_body(body):
                 return "line {}: sleep ms must be an integer".format(lineno)
             if ms < 0:
                 return "line {}: sleep ms must be >= 0".format(lineno)
-            steps.append((_SLEEP, ms))
+            out.append((_SLEEP, ms))
             continue
 
         cmd = parse(line)
@@ -103,7 +149,12 @@ def compile_body(body):
             return "line {}: '{}' is not allowed inside a macro".format(
                 lineno, parts[0].lower()
             )
-        steps.append((_CMD, cmd))
+        out.append((_CMD, cmd))
+        if len(steps) + (len(rep_steps) if rep_steps is not None else 0) > _MAX_STEPS:
+            return "line {}: macro is too long (over {} steps)".format(lineno, _MAX_STEPS)
+
+    if rep_count is not None:
+        return "line {}: 'repeat' without a matching 'end'".format(rep_line)
 
     return steps
 

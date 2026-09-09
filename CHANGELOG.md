@@ -34,6 +34,8 @@ Versions are cut automatically from conventional commit messages by
   stops a running macro, cancels a pending autorun, or starts the configured
   macro immediately. With Ctrl-C disabled on the device this is the only
   guaranteed way to halt a macro with no host and no network attached.
+- `repeat <n>` / `end` blocks in macros, expanded at compile time so the player
+  is unchanged. Capped at 4000 expanded steps; no nesting.
 - Macro editor and autorun panel in the web UI.
 - `status` now reports free RAM and filesystem space.
 - `CLAUDE.md` and this changelog.

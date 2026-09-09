@@ -115,6 +115,7 @@ during the countdown.</p>
 <tr><td>mouse release</td><td>Release all held buttons</td></tr>
 <tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">Macros</td></tr>
 <tr><td>sleep &lt;ms&gt;</td><td>Wait (only valid inside a macro)</td></tr>
+<tr><td>repeat &lt;n&gt; … end</td><td>Repeat a block n times (macro only)</td></tr>
 <tr><td>macro save &lt;name&gt;</td><td>Save; body follows on later lines</td></tr>
 <tr><td>macro end / abort</td><td>Finish or cancel serial capture</td></tr>
 <tr><td>macro run &lt;name&gt; [loop]</td><td>Run a macro, optionally forever</td></tr>

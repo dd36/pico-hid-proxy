@@ -144,6 +144,42 @@ for body, frag in bad:
 
 check("empty body -> no steps", macros.compile_body("\n# just a comment\n\n") == [])
 
+print("\n-- repeat blocks --")
+good = """key tap a
+repeat 3
+key down w
+sleep 100
+key up w
+end
+key tap b
+"""
+st = macros.compile_body(good)
+check("repeat compiles", not isinstance(st, str), st)
+check("expands 1 + 3*3 + 1 = 11 steps", len(st) == 11, len(st) if not isinstance(st,str) else st)
+check("body before repeat kept", st[0][1].kind == "key_tap", st[0])
+check("body after repeat kept", st[-1][1].kind == "key_tap", st[-1])
+check("repeat 1 is identity",
+      len(macros.compile_body("repeat 1\nkey tap a\nend")) == 1)
+check("comments/blanks inside repeat skipped",
+      len(macros.compile_body("repeat 2\n# hi\n\nkey tap a\nend")) == 2)
+
+for body, frag in [
+    ("repeat\nkey tap a\nend",            "repeat needs <count>"),
+    ("repeat x\nkey tap a\nend",          "must be an integer"),
+    ("repeat 0\nkey tap a\nend",          "must be 1-"),
+    ("repeat 99999\nkey tap a\nend",      "must be 1-"),
+    ("repeat 2\nkey tap a",                "without a matching 'end'"),
+    ("end",                                 "without a matching 'repeat'"),
+    ("repeat 2\nend",                      "repeat block is empty"),
+    ("repeat 2\nrepeat 2\nkey tap a\nend\nend", "cannot be nested"),
+    ("repeat 2\nkey tap NOPE\nend",       "unknown key"),
+    ("repeat 2\nreboot\nend",             "not allowed inside a macro"),
+    ("repeat 1000\nkey tap a\nkey tap b\nkey tap c\nkey tap d\nkey tap e\nend", "over the"),
+]:
+    r = macros.compile_body(body)
+    check("reject %-42r" % body.replace("\n","|"),
+          isinstance(r, str) and frag in r, "got %r" % r)
+
 print("\n-- line numbers point at the real line --")
 res = macros.compile_body("key tap a\nkey tap b\nkey tap NOPE")
 check("error reports line 3", isinstance(res, str) and res.startswith("line 3:"), res)
