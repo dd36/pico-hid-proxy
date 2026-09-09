@@ -80,7 +80,8 @@ key tap space
 sleep 5000
 ```
 
-`repeat <n>` ... `end` runs a block n times without writing it out by hand:
+A `repeat <n>` line and a matching `end` line wrap a block, running it n times
+without writing it out by hand:
 
 ```
 repeat 20
@@ -284,7 +285,7 @@ Type `help` once connected for a list of commands.
 | Command | Description |
 |---|---|
 | `sleep <ms>` | Wait (only valid inside a macro) |
-| `repeat <n>` … `end` | Repeat a block n times (macro only, no nesting) |
+| `repeat <n>` | Start a block; `end` closes it. Runs it n times (macro only, no nesting) |
 | `macro save <name>` | Start serial capture, or save a body sent in the same command |
 | `macro end` / `macro abort` | Finish or discard a serial capture |
 | `macro run <name> [loop]` | Run a macro once, or repeat until stopped |
