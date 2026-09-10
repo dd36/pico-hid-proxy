@@ -215,7 +215,23 @@ The device code is frozen into a custom MicroPython firmware, producing a single
 ./build_firmware.sh
 ```
 
-This builds MicroPython for `RPI_PICO2_W` with all `device/` code and the `usb-device-hid` library frozen in. Output: `firmware/pico_hid_firmware.uf2`.
+This builds MicroPython for `RPI_PICO2_W` with all `device/` code and the `usb-device-hid` library frozen in.
+
+Two files are written to `firmware/`:
+
+| File | Purpose |
+|---|---|
+| `pico-hid-proxy-<board>-<version>.uf2` | Versioned archive, one per build. Kept, never overwritten. |
+| `pico_hid_firmware.uf2` | Copy of the latest build, stable name for scripts and CI. |
+
+The version comes from `git describe`, so every image traces back to a commit. A
+`-dirty` suffix means it was built from uncommitted changes — worth noticing before
+you flash something you cannot reproduce.
+
+Keeping the versioned copies means you always have a known-good image to roll back
+to. The filename itself is irrelevant when flashing: the bootloader identifies a UF2
+by its header and rejects images built for the wrong chip, so you can drag either
+file onto the drive.
 
 To update MicroPython version edit the `Dockerfile` or run with `--build-arg MICROPYTHON_TAG=v1.27.0` arg.
 

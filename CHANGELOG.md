@@ -43,6 +43,14 @@ Versions are cut automatically from conventional commit messages by
   macro storage/playback, including a guard against on-device paths shadowing
   frozen modules.
 
+### Changed
+
+- `build_firmware.sh` writes a versioned `pico-hid-proxy-<board>-<version>.uf2`
+  alongside the stable `pico_hid_firmware.uf2`, so previous images survive and
+  every build traces to a commit. It extracts to a temp file and verifies the UF2
+  magic before replacing anything, and implements the `--clean` flag the README
+  already documented.
+
 ### Fixed
 
 - Macros are stored under `/macros.d/` rather than `/macros/`. The filesystem root

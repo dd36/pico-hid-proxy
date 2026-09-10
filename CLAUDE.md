@@ -11,9 +11,18 @@ MicroPython that runs on the Pico; `host/` runs on your computer.
 ## Build and flash
 
 ```bash
-./build_firmware.sh                  # Docker build -> firmware/pico_hid_firmware.uf2
+./build_firmware.sh                  # Docker build -> firmware/
+./build_firmware.sh --clean          # bypass Docker layer cache
 BOARD=RPI_PICO_W ./build_firmware.sh # override board (default RPI_PICO2_W)
 ```
+
+Each build writes a versioned `pico-hid-proxy-<board>-<git describe>.uf2` plus a
+copy at the stable path `firmware/pico_hid_firmware.uf2`, which `release.yml` and
+the README both depend on — keep that name if you touch the build script. The
+versioned copies are never overwritten, so a rollback image always survives; the
+build extracts to a temp file and checks the UF2 magic before replacing anything,
+because a failed build silently clobbering the previous image once cost the only
+known-good firmware on hand.
 
 The MicroPython version is pinned by `ARG MICROPYTHON_TAG` in the `Dockerfile`.
 
