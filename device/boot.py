@@ -10,7 +10,8 @@
 # rather than leaving the device with no USB at all.
 
 import usb.device
-from hid_device import KeyboardHID, MouseHID, AbsMouseHID, SwitchGamepadHID, PAD_VID, PAD_PID
+from hid_device import (KeyboardHID, MouseHID, AbsMouseHID, SwitchGamepadHID,
+                        PAD_VID, PAD_PID, PAD_BCD_DEVICE)
 
 # Always created so main.py can import them unconditionally. Creating an
 # interface does not register it with USB; only init() below does that.
@@ -40,8 +41,10 @@ if usb_mode in ("pad", "padonly"):
             builtin_driver=(usb_mode == "pad"),
             id_vendor=PAD_VID,
             id_product=PAD_PID,
-            manufacturer_str="HORI CO.,LTD.",
-            product_str="POKKEN CONTROLLER",
+            bcd_device=PAD_BCD_DEVICE,
+            remote_wakeup=True,   # NSLite sets usbAttributes 0xA0
+            manufacturer_str="Espressif",
+            product_str="NSLite",
         )
     except Exception:
         usb_mode = "hid"  # fall back rather than leave the device dark

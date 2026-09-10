@@ -44,7 +44,7 @@ for line, frag in [("pad","missing subcommand"), ("pad tap","missing button"),
 print("\n-- report bytes --")
 pad = hid_device.SwitchGamepadHID()
 SENT.clear(); pad.release_all()
-check("neutral report", SENT[-1] == bytes([0,0,8,128,128,128,128,0]), list(SENT[-1]))
+check("neutral report", SENT[-1] == bytes([0,0,0x0F,128,128,128,128,0]), list(SENT[-1]))
 SENT.clear(); pad.button_down(keycodes.PAD_BUTTONS["a"])
 check("A sets bit 0x0004", SENT[-1][0] == 0x04, list(SENT[-1]))
 pad.button_down(keycodes.PAD_BUTTONS["zr"])
@@ -68,6 +68,28 @@ check("right stick centers to 128", SENT[-1][5]==128 and SENT[-1][6]==128, list(
 SENT.clear(); pad.stick(True, 37, 0)
 check("37%% maps to 175", SENT[-1][3] == 175, SENT[-1][3])
 check("every report is 8 bytes", all(len(r)==8 for r in SENT), [len(r) for r in SENT])
+
+print("\n-- must stay byte-compatible with the verified NSLite descriptor --")
+import re as _re
+_src = open(_os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                          "device", "hid_device.py")).read()
+_d = _re.search(r"_PAD_REPORT_DESC = bytes\(\[(.*?)\]\)", _src, _re.S).group(1)
+_vals = [int(x,16) for x in _re.findall(r"0x([0-9A-Fa-f]{2})", _d)]
+check("descriptor is 80 bytes", len(_vals) == 80, len(_vals))
+# declared input bits must equal the 8-byte report we actually send
+_bits=_size=_count=0; _i=0
+while _i < len(_vals):
+    _b=_vals[_i]; _tag=_b & 0xFC; _n=_b & 0x03
+    _v=sum(d << (8*k) for k,d in enumerate(_vals[_i+1:_i+1+_n]))
+    if _tag==0x74: _size=_v
+    elif _tag==0x94: _count=_v
+    elif _tag==0x80: _bits+=_size*_count
+    _i += 1+_n
+check("declared input == 8 bytes", _bits//8 == 8, _bits)
+check("declares 14 buttons, not 16", 0x0E in _vals[:30], "report count byte missing")
+check("PID is HORIPAD 0x00C1", hid_device.PAD_PID == 0x00C1, hex(hid_device.PAD_PID))
+check("neutral hat is null-state 0x0F", keycodes.PAD_HAT_NEUTRAL == 0x0F,
+      hex(keycodes.PAD_HAT_NEUTRAL))
 
 print("\n" + ("ALL PASS" if not fails else "%d FAILURE(S)" % len(fails)))
 sys.exit(1 if fails else 0)

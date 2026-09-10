@@ -343,21 +343,25 @@ class AbsMouseHID(HIDInterface):
 # the device -- this is not a place to be creative.
 
 _PAD_REPORT_DESC = bytes([
+    # Byte-for-byte match of the descriptor in controllercustom/ESP32nslite,
+    # which that project verified against a Nintendo Switch capture. Do not
+    # "tidy" this: the button count, the padding entries and the trailing
+    # constant byte are all load-bearing.
     0x05, 0x01,        # Usage Page (Generic Desktop)
-    0x09, 0x05,        # Usage (Gamepad)
+    0x09, 0x05,        # Usage (Game Pad)
     0xA1, 0x01,        # Collection (Application)
-    # 16 buttons, 1 bit each
     0x15, 0x00,        #   Logical Minimum (0)
     0x25, 0x01,        #   Logical Maximum (1)
     0x35, 0x00,        #   Physical Minimum (0)
     0x45, 0x01,        #   Physical Maximum (1)
     0x75, 0x01,        #   Report Size (1)
-    0x95, 0x10,        #   Report Count (16)
+    0x95, 0x0E,        #   Report Count (14 buttons, not 16)
     0x05, 0x09,        #   Usage Page (Button)
-    0x19, 0x01,        #   Usage Minimum (Button 1)
-    0x29, 0x10,        #   Usage Maximum (Button 16)
+    0x19, 0x01,        #   Usage Minimum (1)
+    0x29, 0x0E,        #   Usage Maximum (14)
     0x81, 0x02,        #   Input (Data, Variable, Absolute)
-    # D-pad as a 4-bit hat switch
+    0x95, 0x02,        #   Report Count (2 padding bits)
+    0x81, 0x01,        #   Input (Constant)
     0x05, 0x01,        #   Usage Page (Generic Desktop)
     0x25, 0x07,        #   Logical Maximum (7)
     0x46, 0x3B, 0x01,  #   Physical Maximum (315 degrees)
@@ -366,12 +370,9 @@ _PAD_REPORT_DESC = bytes([
     0x65, 0x14,        #   Unit (English Rotation: Degrees)
     0x09, 0x39,        #   Usage (Hat switch)
     0x81, 0x42,        #   Input (Data, Variable, Absolute, Null State)
-    # 4 bits of padding to finish the byte
     0x65, 0x00,        #   Unit (None)
-    0x75, 0x04,        #   Report Size (4)
-    0x95, 0x01,        #   Report Count (1)
+    0x95, 0x01,        #   Report Count (1 padding nibble)
     0x81, 0x01,        #   Input (Constant)
-    # Two analog sticks: X, Y, Z, Rz
     0x26, 0xFF, 0x00,  #   Logical Maximum (255)
     0x46, 0xFF, 0x00,  #   Physical Maximum (255)
     0x09, 0x30,        #   Usage (X)
@@ -379,13 +380,11 @@ _PAD_REPORT_DESC = bytes([
     0x09, 0x32,        #   Usage (Z)
     0x09, 0x35,        #   Usage (Rz)
     0x75, 0x08,        #   Report Size (8)
-    0x95, 0x04,        #   Report Count (4)
+    0x95, 0x04,        #   Report Count (4 axes)
     0x81, 0x02,        #   Input (Data, Variable, Absolute)
-    # Vendor byte the Pokken pad reports; the Switch expects the byte to exist
-    0x06, 0x00, 0xFF,  #   Usage Page (Vendor Defined)
-    0x09, 0x20,        #   Usage (0x20)
-    0x95, 0x01,        #   Report Count (1)
-    0x81, 0x02,        #   Input (Data, Variable, Absolute)
+    0x75, 0x08,        #   Report Size (8)
+    0x95, 0x01,        #   Report Count (1 padding byte)
+    0x81, 0x01,        #   Input (Constant)
     0xC0,              # End Collection
 ])
 
@@ -394,7 +393,8 @@ _PAD_REPORT_LEN = const(8)
 # USB ids of the HORI Pokken Tournament Pro Pad. boot.py applies these to the
 # whole device in pad mode, so the Pico stops enumerating as a Raspberry Pi.
 PAD_VID = const(0x0F0D)
-PAD_PID = const(0x0092)
+PAD_PID = const(0x00C1)
+PAD_BCD_DEVICE = const(0x0572)
 
 class SwitchGamepadHID(HIDInterface):
     """USB HID gamepad the Nintendo Switch accepts, as a Pokken Tournament pad."""
@@ -425,7 +425,6 @@ class SwitchGamepadHID(HIDInterface):
         r[6] = self._ry
         r[7] = 0
         self.send_report(r)
-        time.sleep_ms(2)
 
     def button_down(self, bit):
         self._buttons |= bit

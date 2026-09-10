@@ -178,11 +178,13 @@ PAD_BUTTONS = {
 }
 
 # D-pad name -> hat value. 8 means "no direction".
+# Neutral is 0x0F, the null-state value outside the 0..7 logical range the
+# descriptor declares. Using 8 makes the Switch see a permanently held d-pad.
 PAD_HAT = {
     "up": 0, "upright": 1, "right": 2, "downright": 3,
     "down": 4, "downleft": 5, "left": 6, "upleft": 7,
-    "neutral": 8, "center": 8, "none": 8,
+    "neutral": 0x0F, "center": 0x0F, "none": 0x0F,
 }
 
-PAD_HAT_NEUTRAL = 8
+PAD_HAT_NEUTRAL = 0x0F
 PAD_STICK_CENTER = 128

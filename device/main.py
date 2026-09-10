@@ -71,6 +71,9 @@ _capture = None
 # Handle for a pending autorun task during its startup delay.
 _autorun_handle = None
 
+# How often to re-send the gamepad report in pad mode, milliseconds.
+_PAD_STREAM_MS = 15
+
 
 def _release_all():
     """Release every held key, mouse button and gamepad control."""
@@ -526,6 +529,21 @@ def _button_action():
     return "BUTTON " + macros.player.start(name, loop)
 
 
+async def _pad_stream_task():
+    """Re-send the gamepad report continuously while in a pad mode.
+
+    A real controller answers every poll with its current state; sending only
+    on change leaves the endpoint NAKing in between. ESP32nslite, which is
+    known to work on a Switch, streams on a timer for exactly this reason.
+    """
+    while True:
+        try:
+            gamepad._send()
+        except Exception:
+            pass
+        await asyncio.sleep_ms(_PAD_STREAM_MS)
+
+
 async def _button_task():
     """Poll the BOOTSEL button as a physical start/stop.
 
@@ -598,6 +616,8 @@ async def _main_async():
     # standalone; the delay window and the BOOTSEL button are the ways to
     # intervene.
     asyncio.create_task(_button_task())
+    if usb_mode in ("pad", "padonly"):
+        asyncio.create_task(_pad_stream_task())
     _start_autorun()
 
     await _serial_task()
