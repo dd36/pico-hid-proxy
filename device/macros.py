@@ -17,7 +17,7 @@ _EXT = ".txt"
 # Command kinds that must never run from inside a macro.
 # reboot would boot-loop when combined with autorun; nested macro control
 # would recurse or fight with the running player.
-_FORBIDDEN = ("reboot", "reboot_bootloader", "usb_mode_set")
+_FORBIDDEN = ("reboot", "reboot_bootloader")
 
 # Compiled step kinds
 _SLEEP = 0

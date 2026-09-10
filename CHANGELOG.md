@@ -12,10 +12,11 @@ Versions are cut automatically from conventional commit messages by
 
 ### Added
 
-- Nintendo Switch gamepad mode. `usb mode pad` (then reboot) makes the device
-  present a HORI HORIPAD for Nintendo Switch, which the Switch accepts with no
+- Nintendo Switch gamepad support. The device always presents a gamepad alongside
+  the keyboard and mouse, reporting the ids of a HORI HORIPAD for Nintendo Switch,
+  which the Switch accepts with no
   controller authentication, giving real analog sticks: `pad tap/down/up`,
-  `pad dpad`, `pad stick`, `pad release`, plus `usb mode` and `usb status`.
+  `pad dpad`, `pad stick`, `pad release`.
   Verified on hardware: d-pad, buttons, Home and analog sticks. The device stays
   composite, keeping the serial console alongside the gamepad.
 

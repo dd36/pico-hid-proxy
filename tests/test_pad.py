@@ -27,8 +27,7 @@ print("\n-- pad command parsing --")
 for line, kind in [("pad tap a","pad_tap"), ("pad down zr","pad_down"), ("pad up minus","pad_up"),
                    ("pad dpad up","pad_dpad"), ("pad dpad neutral","pad_dpad"),
                    ("pad stick left 50 -25","pad_stick"), ("pad stick r 0 0","pad_stick"),
-                   ("pad release","pad_release"),
-                   ("usb mode pad","usb_mode_set"), ("usb status","usb_status")]:
+                   ("pad release","pad_release")]:
     r = parse(line)
     check("%-26r -> %s" % (line, kind), not isinstance(r,str) and r.kind==kind, r)
 
@@ -36,8 +35,7 @@ print("\n-- rejected --")
 for line, frag in [("pad","missing subcommand"), ("pad tap","missing button"),
                    ("pad tap nope","unknown button"), ("pad dpad sideways","unknown direction"),
                    ("pad stick left 5","need <left|right>"), ("pad stick left a b","must be integers"),
-                   ("pad stick left 200 0","within -100..100"), ("pad bogus","unknown subcommand"),
-                   ("usb mode xbox","unknown mode"), ("usb","missing subcommand")]:
+                   ("pad stick left 200 0","within -100..100"), ("pad bogus","unknown subcommand")]:
     r = parse(line)
     check("%-26r rejected" % line, isinstance(r,str) and frag in r, r)
 

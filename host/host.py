@@ -115,8 +115,6 @@ Gamepad (pad mode):
   pad dpad <dir>        - up/upright/right/downright/down/downleft/left/upleft/neutral
   pad stick <l|r> <x> <y> - Analog stick, -100..100 per axis
   pad release           - Release buttons, centre sticks
-  usb mode <hid|pad>    - Switch USB personality (reboot to apply)
-  usb status            - Show running / configured USB mode
 
 Macros:
   sleep <ms>            - Wait (only valid inside a macro)

@@ -11,7 +11,7 @@ import machine
 import micropython
 import uasyncio as asyncio
 
-from boot import keyboard, mouse, abs_mouse, gamepad, usb_mode
+from boot import keyboard, mouse, abs_mouse, gamepad
 from protocol import parse, Command, MIN_AUTORUN_DELAY_MS
 import config
 import wifi
@@ -264,7 +264,6 @@ def _dispatch(cmd, from_web=False):
         lines.append("webui: {} ({})".format(
             "enabled" if webui_on else "disabled",
             "running" if webui_running else "stopped"))
-        lines.append("usb: {}".format(usb_mode))
         lines.append(macros.player.status())
         auto_name, auto_delay, auto_loop = config.get_autorun()
         if auto_name:
@@ -337,18 +336,6 @@ def _dispatch(cmd, from_web=False):
     if k == "pad_release":
         gamepad.release_all()
         return "OK"
-
-    if k == "usb_status":
-        stored = config.get_usb_mode()
-        line = "usb: running '{}'".format(usb_mode)
-        if stored != usb_mode:
-            line += ", configured '{}' (reboot to apply)".format(stored)
-        return line
-    if k == "usb_mode_set":
-        config.set_usb_mode(p["mode"])
-        if p["mode"] == usb_mode:
-            return "OK usb mode already '{}'".format(p["mode"])
-        return "OK usb mode '{}' saved - reboot to apply".format(p["mode"])
 
     # Macros
     if k == "macro_capture_begin":
@@ -645,8 +632,7 @@ async def _main_async():
     # intervene.
     asyncio.create_task(_wifi_watch_task())
     asyncio.create_task(_button_task())
-    if usb_mode in ("pad", "all"):
-        asyncio.create_task(_pad_stream_task())
+    asyncio.create_task(_pad_stream_task())
     _start_autorun()
 
     await _serial_task()

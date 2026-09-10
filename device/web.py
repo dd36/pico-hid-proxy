@@ -119,8 +119,6 @@ during the countdown.</p>
 <tr><td>pad dpad &lt;dir&gt;</td><td>up/upright/right/.../neutral</td></tr>
 <tr><td>pad stick &lt;l|r&gt; &lt;x&gt; &lt;y&gt;</td><td>Analog stick, -100..100</td></tr>
 <tr><td>pad release</td><td>Release buttons, centre sticks</td></tr>
-<tr><td>usb mode &lt;hid|pad&gt;</td><td>Switch USB personality (reboot to apply)</td></tr>
-<tr><td>usb status</td><td>Show running / configured USB mode</td></tr>
 <tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">Macros</td></tr>
 <tr><td>sleep &lt;ms&gt;</td><td>Wait (only valid inside a macro)</td></tr>
 <tr><td>repeat &lt;n&gt;</td><td>Start a block that runs n times (macro only)</td></tr>

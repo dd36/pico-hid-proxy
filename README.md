@@ -217,24 +217,30 @@ used by [ESP32nslite](https://github.com/controllercustom/ESP32nslite) — the b
 count, padding entries and trailing constant byte are all load-bearing. Unlike PlayStation, no controller
 authentication is involved.
 
-Switch mode, then reboot to apply:
+There is nothing to configure. The device always presents a gamepad alongside the
+keyboard and mouse, so the same firmware works on both consoles: the Switch uses the
+gamepad, and a PlayStation uses the keyboard and mouse while ignoring the gamepad it
+cannot authenticate.
 
-```
-usb mode pad
-reboot
-```
-
-`usb mode hid` puts it back. The setting persists, and `usb status` shows both the
-running and configured modes.
-
-Pad mode gives you real analog sticks — `pad stick left 37 -12` is a single report,
-which keyboard emulation cannot express.
+The gamepad gives you real analog sticks — `pad stick left 37 -12` is a single
+report, which keyboard emulation cannot express.
 
 > [!NOTE]
-> In pad mode the board reports the HORIPAD's USB ids, so it no longer
-> enumerates as a Raspberry Pi. `host/host.py` looks for both. WiFi credentials and
-> the API token persist across the mode change, so configure them first if you plan
-> to rely on the web UI.
+> The board reports the HORIPAD's USB ids rather than a Raspberry Pi's, since the
+> Switch identifies controllers that way and a PlayStation does not care.
+> `host/host.py` matches both.
+
+### PlayStation: a controller has to connect once
+
+A PlayStation ignores USB keyboard input until a DualSense connects at some point
+**after** the keyboard enumerates. It can disconnect again afterwards and the
+keyboard keeps working — but plug the Pico in, never touch a controller, and keys go
+nowhere.
+
+The simplest answer is to leave a DualSense plugged in over USB. It holds the
+session, stays charged, and is there for menus the Pico cannot drive. Without one,
+the Pico cannot bootstrap a session on its own, so an unattended setup will not
+survive a console reboot.
 
 ## Project Structure
 
@@ -370,13 +376,6 @@ Type `help` once connected for a list of commands.
 | `pad release` | Release all buttons, centre both sticks and the d-pad |
 
 Buttons: `a` `b` `x` `y` `l` `r` `zl` `zr` `plus` `minus` `home` `capture` `lstick` `rstick`
-
-### USB mode
-
-| Command | Description |
-|---|---|
-| `usb mode <hid\|pad>` | Choose keyboard+mouse or Switch gamepad (reboot to apply) |
-| `usb status` | Show running and configured USB mode |
 
 ### WiFi
 

@@ -125,22 +125,6 @@ def parse(line):
     if verb == "pad":
         return _parse_pad(rest)
 
-    if verb == "usb":
-        if not rest:
-            return "usb: missing subcommand (mode/status)"
-        parts_u = rest.split()
-        sub = parts_u[0].lower()
-        if sub == "status":
-            return Command("usb_status")
-        if sub == "mode":
-            if len(parts_u) < 2:
-                return "usb mode: need hid, pad or all"
-            mode = parts_u[1].lower()
-            if mode not in ("hid", "pad", "all"):
-                return "usb mode: unknown mode '{}' (hid/pad/all)".format(mode)
-            return Command("usb_mode_set", {"mode": mode})
-        return "usb: unknown subcommand '{}' (mode/status)".format(sub)
-
     # --- Macro commands ---
     if verb == "macro":
         return _parse_macro(rest)

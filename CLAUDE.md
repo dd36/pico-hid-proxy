@@ -85,13 +85,11 @@ macro player  ─┘
   keyed on `Command.kind`, and is the single place hardware gets touched. It also
   holds module-global state (`_capture`, `_autorun_handle`, `_web_server_started`).
   `main()` runs at import time.
-- **`boot.py`** runs before `main.py` and initializes the USB composite device.
-  It has two personalities, chosen by `config.get_usb_mode()`: `hid` (CDC +
-  keyboard + mouse + absolute mouse) and `pad` (CDC + Switch gamepad). It exports
-  `keyboard`, `mouse`, `abs_mouse`, `gamepad` and `usb_mode` for `main.py`.
-  Nothing else may touch USB. Every step is guarded — this runs before anything
-  can recover it, so a bad config or a failed pad init falls back to `hid` rather
-  than leaving the device with no USB at all.
+- **`boot.py`** runs before `main.py` and initializes the USB composite device:
+  CDC serial plus keyboard, mouse, absolute mouse and a Switch gamepad, all at
+  once. One device serves both consoles. It exports `keyboard`, `mouse`,
+  `abs_mouse` and `gamepad` for `main.py`. Nothing else may touch USB, and this
+  runs before anything can recover the device — keep it simple.
 - **`web.py`** is a hand-rolled asyncio HTTP/1.0 server serving exactly three
   routes (`GET /`, `GET /health`, `POST /api`). The entire web UI is a single
   frozen `_HTML` string in this file. It calls back into `main._dispatch_from_web`;
