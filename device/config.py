@@ -92,3 +92,17 @@ def clear_autorun():
     cfg.pop("autorun_delay", None)
     cfg.pop("autorun_loop", None)
     save(cfg)
+
+
+# USB personality. "hid" is keyboard + mouse (the default, and what the PS5
+# path uses); "pad" presents a Nintendo Switch gamepad instead. Read by boot.py
+# before USB comes up, so a bad value must never raise.
+def get_usb_mode():
+    mode = load().get("usb_mode", "hid")
+    return mode if mode in ("hid", "pad") else "hid"
+
+
+def set_usb_mode(mode):
+    cfg = load()
+    cfg["usb_mode"] = mode
+    save(cfg)

@@ -156,3 +156,33 @@ def char_to_report(ch):
     keycode, shift = entry
     mod = MOD_LEFT_SHIFT if shift else MOD_NONE
     return (mod, keycode)
+
+
+# --- Nintendo Switch gamepad (pad mode) --------------------------------------
+# Button name -> bit in the 16-bit button field of the Pokken pad report.
+PAD_BUTTONS = {
+    "y": 0x0001,
+    "b": 0x0002,
+    "a": 0x0004,
+    "x": 0x0008,
+    "l": 0x0010,
+    "r": 0x0020,
+    "zl": 0x0040,
+    "zr": 0x0080,
+    "minus": 0x0100,
+    "plus": 0x0200,
+    "lstick": 0x0400,
+    "rstick": 0x0800,
+    "home": 0x1000,
+    "capture": 0x2000,
+}
+
+# D-pad name -> hat value. 8 means "no direction".
+PAD_HAT = {
+    "up": 0, "upright": 1, "right": 2, "downright": 3,
+    "down": 4, "downleft": 5, "left": 6, "upleft": 7,
+    "neutral": 8, "center": 8, "none": 8,
+}
+
+PAD_HAT_NEUTRAL = 8
+PAD_STICK_CENTER = 128

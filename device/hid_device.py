@@ -3,6 +3,7 @@
 
 import time
 from micropython import const
+from keycodes import PAD_HAT_NEUTRAL, PAD_STICK_CENTER
 from usb.device.hid import HIDInterface
 
 # ── Keyboard HID Report Descriptor ──────────────────────────────────────────
@@ -330,3 +331,143 @@ class AbsMouseHID(HIDInterface):
         """Release all buttons."""
         self._buttons = 0
         self._send(0, 0, 0)
+
+
+# --- Nintendo Switch gamepad -------------------------------------------------
+#
+# The Switch does not accept arbitrary HID gamepads. It does accept a small set
+# of licensed controllers, and the HORI Pokken Tournament Pro Pad
+# (VID 0x0F0D / PID 0x0092) is the one every Switch-automation project uses,
+# because it needs no authentication handshake. The descriptor and the 8-byte
+# report layout below have to match that controller for the console to accept
+# the device -- this is not a place to be creative.
+
+_PAD_REPORT_DESC = bytes([
+    0x05, 0x01,        # Usage Page (Generic Desktop)
+    0x09, 0x05,        # Usage (Gamepad)
+    0xA1, 0x01,        # Collection (Application)
+    # 16 buttons, 1 bit each
+    0x15, 0x00,        #   Logical Minimum (0)
+    0x25, 0x01,        #   Logical Maximum (1)
+    0x35, 0x00,        #   Physical Minimum (0)
+    0x45, 0x01,        #   Physical Maximum (1)
+    0x75, 0x01,        #   Report Size (1)
+    0x95, 0x10,        #   Report Count (16)
+    0x05, 0x09,        #   Usage Page (Button)
+    0x19, 0x01,        #   Usage Minimum (Button 1)
+    0x29, 0x10,        #   Usage Maximum (Button 16)
+    0x81, 0x02,        #   Input (Data, Variable, Absolute)
+    # D-pad as a 4-bit hat switch
+    0x05, 0x01,        #   Usage Page (Generic Desktop)
+    0x25, 0x07,        #   Logical Maximum (7)
+    0x46, 0x3B, 0x01,  #   Physical Maximum (315 degrees)
+    0x75, 0x04,        #   Report Size (4)
+    0x95, 0x01,        #   Report Count (1)
+    0x65, 0x14,        #   Unit (English Rotation: Degrees)
+    0x09, 0x39,        #   Usage (Hat switch)
+    0x81, 0x42,        #   Input (Data, Variable, Absolute, Null State)
+    # 4 bits of padding to finish the byte
+    0x65, 0x00,        #   Unit (None)
+    0x75, 0x04,        #   Report Size (4)
+    0x95, 0x01,        #   Report Count (1)
+    0x81, 0x01,        #   Input (Constant)
+    # Two analog sticks: X, Y, Z, Rz
+    0x26, 0xFF, 0x00,  #   Logical Maximum (255)
+    0x46, 0xFF, 0x00,  #   Physical Maximum (255)
+    0x09, 0x30,        #   Usage (X)
+    0x09, 0x31,        #   Usage (Y)
+    0x09, 0x32,        #   Usage (Z)
+    0x09, 0x35,        #   Usage (Rz)
+    0x75, 0x08,        #   Report Size (8)
+    0x95, 0x04,        #   Report Count (4)
+    0x81, 0x02,        #   Input (Data, Variable, Absolute)
+    # Vendor byte the Pokken pad reports; the Switch expects the byte to exist
+    0x06, 0x00, 0xFF,  #   Usage Page (Vendor Defined)
+    0x09, 0x20,        #   Usage (0x20)
+    0x95, 0x01,        #   Report Count (1)
+    0x81, 0x02,        #   Input (Data, Variable, Absolute)
+    0xC0,              # End Collection
+])
+
+_PAD_REPORT_LEN = const(8)
+
+# USB ids of the HORI Pokken Tournament Pro Pad. boot.py applies these to the
+# whole device in pad mode, so the Pico stops enumerating as a Raspberry Pi.
+PAD_VID = const(0x0F0D)
+PAD_PID = const(0x0092)
+
+class SwitchGamepadHID(HIDInterface):
+    """USB HID gamepad the Nintendo Switch accepts, as a Pokken Tournament pad."""
+
+    def __init__(self):
+        super().__init__(
+            _PAD_REPORT_DESC,
+            set_report_buf=bytearray(0),
+            protocol=0,  # no boot protocol for gamepads
+            interface_str="Pico Gamepad",
+        )
+        self._report = bytearray(_PAD_REPORT_LEN)
+        self._buttons = 0
+        self._hat = PAD_HAT_NEUTRAL
+        self._lx = PAD_STICK_CENTER
+        self._ly = PAD_STICK_CENTER
+        self._rx = PAD_STICK_CENTER
+        self._ry = PAD_STICK_CENTER
+
+    def _send(self):
+        r = self._report
+        r[0] = self._buttons & 0xFF
+        r[1] = (self._buttons >> 8) & 0xFF
+        r[2] = self._hat & 0x0F
+        r[3] = self._lx
+        r[4] = self._ly
+        r[5] = self._rx
+        r[6] = self._ry
+        r[7] = 0
+        self.send_report(r)
+        time.sleep_ms(2)
+
+    def button_down(self, bit):
+        self._buttons |= bit
+        self._send()
+
+    def button_up(self, bit):
+        self._buttons &= ~bit
+        self._send()
+
+    def button_tap(self, bit, hold_ms=60):
+        """Press and release. The Switch drops presses shorter than a frame or
+        two, so a tap has to be held long enough to be sampled."""
+        self._buttons |= bit
+        self._send()
+        time.sleep_ms(hold_ms)
+        self._buttons &= ~bit
+        self._send()
+
+    def dpad(self, hat):
+        self._hat = hat
+        self._send()
+
+    def stick(self, left, x, y):
+        """Set a stick from percentages: -100..100, 0 centered.
+
+        Y is inverted so positive is up, which is what a person expects; the
+        wire format has 0 at the top.
+        """
+        vx = PAD_STICK_CENTER + round(x * 127 / 100)
+        vy = PAD_STICK_CENTER - round(y * 127 / 100)
+        vx = max(0, min(255, vx))
+        vy = max(0, min(255, vy))
+        if left:
+            self._lx, self._ly = vx, vy
+        else:
+            self._rx, self._ry = vx, vy
+        self._send()
+
+    def release_all(self):
+        """Release every button and recentre both sticks and the d-pad."""
+        self._buttons = 0
+        self._hat = PAD_HAT_NEUTRAL
+        self._lx = self._ly = PAD_STICK_CENTER
+        self._rx = self._ry = PAD_STICK_CENTER
+        self._send()

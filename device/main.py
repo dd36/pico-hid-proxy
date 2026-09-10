@@ -11,7 +11,7 @@ import machine
 import micropython
 import uasyncio as asyncio
 
-from boot import keyboard, mouse, abs_mouse
+from boot import keyboard, mouse, abs_mouse, gamepad, usb_mode
 from protocol import parse, Command, MIN_AUTORUN_DELAY_MS
 import config
 import wifi
@@ -73,9 +73,10 @@ _autorun_handle = None
 
 
 def _release_all():
-    """Release every held key and mouse button."""
+    """Release every held key, mouse button and gamepad control."""
     keyboard.release_all()
     mouse.release_all()
+    gamepad.release_all()
 
 
 def _save_macro(name, body):
@@ -257,6 +258,7 @@ def _dispatch(cmd, from_web=False):
         lines.append("webui: {} ({})".format(
             "enabled" if webui_on else "disabled",
             "running" if webui_running else "stopped"))
+        lines.append("usb: {}".format(usb_mode))
         lines.append(macros.player.status())
         auto_name, auto_delay, auto_loop = config.get_autorun()
         if auto_name:
@@ -309,6 +311,38 @@ def _dispatch(cmd, from_web=False):
     if k == "mouse_release":
         mouse.release_all()
         return "OK"
+
+    # Gamepad (Switch pad mode)
+    if k == "pad_tap":
+        gamepad.button_tap(p["bit"])
+        return "OK"
+    if k == "pad_down":
+        gamepad.button_down(p["bit"])
+        return "OK"
+    if k == "pad_up":
+        gamepad.button_up(p["bit"])
+        return "OK"
+    if k == "pad_dpad":
+        gamepad.dpad(p["hat"])
+        return "OK"
+    if k == "pad_stick":
+        gamepad.stick(p["left"], p["x"], p["y"])
+        return "OK"
+    if k == "pad_release":
+        gamepad.release_all()
+        return "OK"
+
+    if k == "usb_status":
+        stored = config.get_usb_mode()
+        line = "usb: running '{}'".format(usb_mode)
+        if stored != usb_mode:
+            line += ", configured '{}' (reboot to apply)".format(stored)
+        return line
+    if k == "usb_mode_set":
+        config.set_usb_mode(p["mode"])
+        if p["mode"] == usb_mode:
+            return "OK usb mode already '{}'".format(p["mode"])
+        return "OK usb mode '{}' saved - reboot to apply".format(p["mode"])
 
     # Macros
     if k == "macro_capture_begin":

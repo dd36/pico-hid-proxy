@@ -191,6 +191,38 @@ can always be halted without a host, a network, or a power cycle:
 Holding BOOTSEL *while plugging in* still enters UF2 flash mode as usual — that is
 ROM behavior that runs before any of this code, so flashing is unaffected.
 
+## Nintendo Switch gamepad mode
+
+> [!WARNING]
+> Untested against real hardware. The descriptor and USB ids match the controller
+> the Switch is known to accept, but nothing here has been confirmed on a console
+> yet.
+
+The Pico can present a Nintendo Switch gamepad instead of a keyboard and mouse.
+The Switch does not accept arbitrary HID gamepads, so the device reports the
+descriptor and USB ids of a HORI Pokken Tournament Pro Pad (`0x0F0D` / `0x0092`),
+which needs no authentication handshake. Unlike PlayStation, no controller
+authentication is involved.
+
+Switch mode, then reboot to apply:
+
+```
+usb mode pad
+reboot
+```
+
+`usb mode hid` puts it back. The setting persists, and `usb status` shows both the
+running and configured modes.
+
+Pad mode gives you real analog sticks — `pad stick left 37 -12` is a single report,
+which keyboard emulation cannot express.
+
+> [!NOTE]
+> In pad mode the board reports the Pokken pad's USB ids, so it no longer
+> enumerates as a Raspberry Pi. `host/host.py` looks for both. WiFi credentials and
+> the API token persist across the mode change, so configure them first if you plan
+> to rely on the web UI.
+
 ## Project Structure
 
 ```
@@ -313,6 +345,25 @@ Type `help` once connected for a list of commands.
 | `macro autorun <name> <ms> [loop]` | Run `<name>` `<ms>` after boot (minimum 3000) |
 | `macro autorun off` | Disable autorun |
 | `macro autorun status` | Show the current autorun setting |
+
+### Gamepad (pad mode)
+
+| Command | Description |
+|---|---|
+| `pad tap <button>` | Press and release a button |
+| `pad down <button>` / `pad up <button>` | Hold / release a button |
+| `pad dpad <direction>` | D-pad: `up`, `upright`, `right` … or `neutral` |
+| `pad stick <left\|right> <x> <y>` | Analog stick, −100 to 100 each axis |
+| `pad release` | Release all buttons, centre both sticks and the d-pad |
+
+Buttons: `a` `b` `x` `y` `l` `r` `zl` `zr` `plus` `minus` `home` `capture` `lstick` `rstick`
+
+### USB mode
+
+| Command | Description |
+|---|---|
+| `usb mode <hid\|pad>` | Choose keyboard+mouse or Switch gamepad (reboot to apply) |
+| `usb status` | Show running and configured USB mode |
 
 ### WiFi
 

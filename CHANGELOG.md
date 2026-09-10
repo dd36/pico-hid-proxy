@@ -12,6 +12,13 @@ Versions are cut automatically from conventional commit messages by
 
 ### Added
 
+- Nintendo Switch gamepad mode. `usb mode pad` (then reboot) makes the device
+  present a HORI Pokken Tournament Pro Pad, which the Switch accepts with no
+  controller authentication, giving real analog sticks: `pad tap/down/up`,
+  `pad dpad`, `pad stick`, `pad release`, plus `usb mode` and `usb status`.
+  Untested on real hardware; whether the Switch accepts the composite device
+  (serial alongside the gamepad) is still unknown.
+
 - On-device macros: named command sequences stored on the Pico filesystem under
   `/macros/`, so a sequence keeps running with no host connected.
   - `macro save` / `end` / `abort` / `run` / `stop` / `list` / `show` / `delete` / `status`

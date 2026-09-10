@@ -85,9 +85,13 @@ macro player  ─┘
   keyed on `Command.kind`, and is the single place hardware gets touched. It also
   holds module-global state (`_capture`, `_autorun_handle`, `_web_server_started`).
   `main()` runs at import time.
-- **`boot.py`** runs before `main.py` and initializes the USB composite device
-  (CDC + keyboard + mouse + absolute mouse). It exports `keyboard`, `mouse`, and
-  `abs_mouse` singletons that `main.py` imports. Nothing else may touch USB.
+- **`boot.py`** runs before `main.py` and initializes the USB composite device.
+  It has two personalities, chosen by `config.get_usb_mode()`: `hid` (CDC +
+  keyboard + mouse + absolute mouse) and `pad` (CDC + Switch gamepad). It exports
+  `keyboard`, `mouse`, `abs_mouse`, `gamepad` and `usb_mode` for `main.py`.
+  Nothing else may touch USB. Every step is guarded — this runs before anything
+  can recover it, so a bad config or a failed pad init falls back to `hid` rather
+  than leaving the device with no USB at all.
 - **`web.py`** is a hand-rolled asyncio HTTP/1.0 server serving exactly three
   routes (`GET /`, `GET /health`, `POST /api`). The entire web UI is a single
   frozen `_HTML` string in this file. It calls back into `main._dispatch_from_web`;
@@ -153,6 +157,31 @@ deliberate — do not relax them without understanding why they exist:
   `macro stop` during that window cancels the pending run.
 - `reboot` and nested `macro_*` commands are rejected inside macro bodies. Autorun
   plus `reboot` is an unbreakable boot loop that requires a BOOTSEL reflash to clear.
+
+### Switch pad mode
+
+The Switch accepts only certain controllers, so `SwitchGamepadHID` reports the
+descriptor and USB ids of a HORI Pokken Tournament Pro Pad (`0x0F0D` / `0x0092`).
+**The descriptor and the 8-byte report layout are not free parameters** — they have
+to match that controller or the console ignores the device. `tests/test_pad.py`
+checks the descriptor's declared input size against `_PAD_REPORT_LEN`, which is the
+cheap way to catch a mismatch that would otherwise fail silently on hardware.
+
+`id_vendor` / `id_product` apply to the whole USB device, not one interface, so in
+pad mode the board stops enumerating as a Raspberry Pi — `host/host.py` matches
+both vendor ids for that reason.
+
+Whether the Switch accepts a *composite* device (CDC serial alongside the gamepad)
+is unverified. If it refuses, the fallback is `builtin_driver=False` for a
+gamepad-only device, which costs the serial console entirely: WiFi and token would
+have to be configured in `hid` mode first, and a WiFi failure in pad mode would
+lock you out until you reflash.
+
+Button and hat name tables live in `keycodes.py`, not `hid_device.py`, so that
+`protocol.py` stays free of hardware imports — see the parse/dispatch split above.
+That is load-bearing for the tests: `tests/test_macros.py` stubs only `uasyncio`,
+and pulling `hid_device` into the parser would drag `micropython` and `usb.device`
+in with it.
 
 ### hid_device state, and one inconsistency in it
 

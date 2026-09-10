@@ -1,7 +1,8 @@
 # Command parser for USB HID text protocol
 # All commands are newline-terminated ASCII.
 
-from keycodes import keyname_to_code, char_to_report, MODIFIER_KEYS
+from keycodes import (keyname_to_code, char_to_report, MODIFIER_KEYS,
+                      PAD_BUTTONS, PAD_HAT)
 
 
 class Command:
@@ -119,6 +120,26 @@ def parse(line):
             return Command("webui_status")
 
         return "webui: unknown subcommand '{}'".format(sub)
+
+    # --- Gamepad commands (Switch pad mode) ---
+    if verb == "pad":
+        return _parse_pad(rest)
+
+    if verb == "usb":
+        if not rest:
+            return "usb: missing subcommand (mode/status)"
+        parts_u = rest.split()
+        sub = parts_u[0].lower()
+        if sub == "status":
+            return Command("usb_status")
+        if sub == "mode":
+            if len(parts_u) < 2:
+                return "usb mode: need hid or pad"
+            mode = parts_u[1].lower()
+            if mode not in ("hid", "pad"):
+                return "usb mode: unknown mode '{}' (hid/pad)".format(mode)
+            return Command("usb_mode_set", {"mode": mode})
+        return "usb: unknown subcommand '{}' (mode/status)".format(sub)
 
     # --- Macro commands ---
     if verb == "macro":
@@ -269,6 +290,57 @@ def parse(line):
         return "mouse: unknown subcommand '{}'".format(sub)
 
     return "unknown command '{}'".format(verb)
+
+
+def _parse_pad(rest):
+    """Parse a 'pad ...' command. Button and hat names live in hid_device so
+    the wire format and the vocabulary cannot drift apart."""
+    if not rest:
+        return "pad: missing subcommand (tap/down/up/dpad/stick/release)"
+    parts = rest.split(None, 1)
+    sub = parts[0].lower()
+    arg = parts[1].strip() if len(parts) > 1 else ""
+
+    if sub == "release":
+        return Command("pad_release")
+
+    if sub in ("tap", "down", "up"):
+        if not arg:
+            return "pad {}: missing button name".format(sub)
+        name = arg.split()[0].lower()
+        bit = PAD_BUTTONS.get(name)
+        if bit is None:
+            return "pad {}: unknown button '{}' ({})".format(
+                sub, name, "/".join(sorted(PAD_BUTTONS)))
+        return Command("pad_" + sub, {"bit": bit})
+
+    if sub == "dpad":
+        if not arg:
+            return "pad dpad: missing direction ({})".format("/".join(sorted(PAD_HAT)))
+        name = arg.split()[0].lower()
+        hat = PAD_HAT.get(name)
+        if hat is None:
+            return "pad dpad: unknown direction '{}' ({})".format(
+                name, "/".join(sorted(PAD_HAT)))
+        return Command("pad_dpad", {"hat": hat})
+
+    if sub == "stick":
+        args = arg.split()
+        if len(args) < 3:
+            return "pad stick: need <left|right> <x> <y> (-100..100)"
+        side = args[0].lower()
+        if side not in ("left", "right", "l", "r"):
+            return "pad stick: side must be left or right"
+        try:
+            x = int(args[1])
+            y = int(args[2])
+        except ValueError:
+            return "pad stick: x/y must be integers (-100..100)"
+        if not (-100 <= x <= 100) or not (-100 <= y <= 100):
+            return "pad stick: x/y must be within -100..100"
+        return Command("pad_stick", {"left": side in ("left", "l"), "x": x, "y": y})
+
+    return "pad: unknown subcommand '{}' (tap/down/up/dpad/stick/release)".format(sub)
 
 
 def _one_name(arg, ctx):

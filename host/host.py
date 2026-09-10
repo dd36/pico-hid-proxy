@@ -22,8 +22,9 @@ def find_pico_port():
     for p in ports:
         desc = (p.description or "").lower()
         vid = p.vid or 0
-        # MicroPython on RP2040/RP2350 uses VID 0x2E8A
-        if vid == 0x2E8A or "pico" in desc or "board in fs mode" in desc:
+        # MicroPython on RP2040/RP2350 uses VID 0x2E8A. In Switch pad mode the
+        # board reports the Pokken pad's ids instead (0x0F0D), so match both.
+        if vid in (0x2E8A, 0x0F0D) or "pico" in desc or "board in fs mode" in desc:
             return p.device
     # Fallback: show available ports
     if ports:
@@ -107,6 +108,15 @@ Mouse:
   mouse up <btn>        - Release button
   mouse scroll <n>      - Scroll (positive=up, e.g. mouse scroll -3)
   mouse release         - Release all held buttons
+
+Gamepad (pad mode):
+  pad tap <button>      - a/b/x/y/l/r/zl/zr/plus/minus/home/capture/lstick/rstick
+  pad down/up <button>  - Hold / release a button
+  pad dpad <dir>        - up/upright/right/downright/down/downleft/left/upleft/neutral
+  pad stick <l|r> <x> <y> - Analog stick, -100..100 per axis
+  pad release           - Release buttons, centre sticks
+  usb mode <hid|pad>    - Switch USB personality (reboot to apply)
+  usb status            - Show running / configured USB mode
 
 Macros:
   sleep <ms>            - Wait (only valid inside a macro)
