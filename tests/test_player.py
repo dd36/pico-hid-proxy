@@ -7,6 +7,17 @@ stub.sleep_ms = lambda ms: asyncio.sleep(ms / 1000.0)
 stub.CancelledError = asyncio.CancelledError
 sys.modules["uasyncio"] = stub
 
+import time as _time
+_time.sleep_ms = lambda ms: None
+for _n in ("micropython", "usb", "usb.device", "usb.device.hid"):
+    _m = types.ModuleType(_n); sys.modules[_n] = _m
+sys.modules["micropython"].const = lambda x: x
+class _HIDStub:
+    def __init__(self, *a, **k): pass
+    def send_report(self, r): pass
+sys.modules["usb.device.hid"].HIDInterface = _HIDStub
+sys.modules["usb.device"].hid = sys.modules["usb.device.hid"]
+
 sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "device"))
 import macros
 
@@ -83,6 +94,39 @@ async def scenario():
     check("not running after error", not macros.player.is_running())
 
 asyncio.run(scenario())
+# --- pad taps must not freeze the report stream ---
+import hid_device as _hd, keycodes as _kc
+
+def _pad_release_after(clear_fn, hold_ms):
+    if hold_ms <= 0:
+        clear_fn(); return
+    async def _t():
+        try: await asyncio.sleep(hold_ms/1000.0)
+        finally: clear_fn()
+    asyncio.create_task(_t())
+
+async def pad_scenario():
+    pad = _hd.SwitchGamepadHID()
+    A = _kc.PAD_BUTTONS["a"]
+    frames = []
+    orig = pad._send
+    def counting_send():
+        frames.append(pad._buttons)
+    pad._send = counting_send
+    async def stream():
+        for _ in range(40):
+            pad._send(); await asyncio.sleep(0.015)
+    t = asyncio.create_task(stream())
+    pad.button_down(A)
+    _pad_release_after(lambda: pad.button_up(A), 400)
+    await asyncio.sleep(0.6)
+    t.cancel()
+    check("stream ran throughout a 400ms hold (not frozen)", len(frames) > 20, len(frames))
+    check("button was held across many frames", sum(1 for f in frames if f & A) > 10)
+    check("button released after the hold", not (pad._buttons & A))
+
+asyncio.run(pad_scenario())
+
 shutil.rmtree(TMP)
 print("\n" + ("ALL PASS" if not fails else "{} FAILURE(S): {}".format(len(fails), fails)))
 sys.exit(1 if fails else 0)

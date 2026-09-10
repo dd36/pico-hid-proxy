@@ -434,29 +434,12 @@ class SwitchGamepadHID(HIDInterface):
         self._buttons &= ~bit
         self._send()
 
-    def button_tap(self, bit, hold_ms=130):
-        """Press and release, holding hold_ms in between.
-
-        130 ms is the default: 60-80 ms was too short to register on the Switch,
-        200 ms overshot into key auto-repeat on some menus. The console samples
-        input far less often than the 8 ms report interval suggests.
-        """
-        self._buttons |= bit
-        self._send()
-        time.sleep_ms(hold_ms)
-        self._buttons &= ~bit
-        self._send()
-
-    def dpad_tap(self, hat, hold_ms=130):
-        """Press a d-pad direction, hold, and return to neutral -- one input."""
-        self._hat = hat
-        self._send()
-        time.sleep_ms(hold_ms)
-        self._hat = PAD_HAT_NEUTRAL
-        self._send()
-
     def dpad(self, hat):
         self._hat = hat
+        self._send()
+
+    def dpad_neutral(self):
+        self._hat = PAD_HAT_NEUTRAL
         self._send()
 
     def stick(self, left, x, y):

@@ -12,6 +12,7 @@ import micropython
 import uasyncio as asyncio
 
 from boot import keyboard, mouse, abs_mouse, gamepad
+from keycodes import PAD_HAT_NEUTRAL
 from protocol import parse, Command, MIN_AUTORUN_DELAY_MS
 import config
 import wifi
@@ -83,6 +84,31 @@ def _release_all():
     keyboard.release_all()
     mouse.release_all()
     gamepad.release_all()
+
+
+def _pad_release_after(clear_fn, hold_ms):
+    """Schedule a gamepad release without blocking.
+
+    A tap must not hold with time.sleep_ms(): that freezes the asyncio loop,
+    which stops _pad_stream_task from re-sending the report, and the Switch
+    drops a controller that goes quiet for too long. Instead press now and
+    clear later from a background task, so the stream keeps running under the
+    hold. hold_ms <= 0 releases immediately.
+    """
+    if hold_ms <= 0:
+        clear_fn()
+        return
+
+    async def _t():
+        try:
+            await asyncio.sleep_ms(hold_ms)
+        finally:
+            try:
+                clear_fn()
+            except Exception:
+                pass
+
+    asyncio.create_task(_t())
 
 
 def _save_macro(name, body):
@@ -319,7 +345,9 @@ def _dispatch(cmd, from_web=False):
 
     # Gamepad (Switch pad mode)
     if k == "pad_tap":
-        gamepad.button_tap(p["bit"], p.get("hold", 130))
+        bit = p["bit"]
+        gamepad.button_down(bit)
+        _pad_release_after(lambda: gamepad.button_up(bit), p.get("hold", 130))
         return "OK"
     if k == "pad_down":
         gamepad.button_down(p["bit"])
@@ -328,11 +356,11 @@ def _dispatch(cmd, from_web=False):
         gamepad.button_up(p["bit"])
         return "OK"
     if k == "pad_dpad":
+        hat = p["hat"]
         hold = p.get("hold", 0)
-        if hold > 0:
-            gamepad.dpad_tap(p["hat"], hold)
-        else:
-            gamepad.dpad(p["hat"])
+        gamepad.dpad(hat)
+        if hold > 0 and hat != PAD_HAT_NEUTRAL:
+            _pad_release_after(gamepad.dpad_neutral, hold)
         return "OK"
     if k == "pad_stick":
         gamepad.stick(p["left"], p["x"], p["y"])
