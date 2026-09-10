@@ -195,7 +195,7 @@ can always be halted without a host, a network, or a power cycle:
 Holding BOOTSEL *while plugging in* still enters UF2 flash mode as usual — that is
 ROM behavior that runs before any of this code, so flashing is unaffected.
 
-## Nintendo Switch gamepad mode
+## Nintendo Switch gamepad
 
 > [!IMPORTANT]
 > After any USB re-enumeration — a reboot, a mode change, a replug — the Switch
@@ -206,8 +206,9 @@ ROM behavior that runs before any of this code, so flashing is unaffected.
 > Also enable **System Settings → Controllers and Sensors → Pro Controller Wired
 > Communication**, or the Switch ignores wired USB controllers entirely.
 >
-> Hold buttons for ~200 ms. The Switch samples input far less often than the 8 ms
-> report interval suggests, and shorter taps are silently dropped.
+> Buttons and directions default to a ~130 ms self-releasing hold, which is what
+> registers reliably; add a longer time (e.g. `pad tap home 800`) to wake the console
+> from sleep. The Switch drops taps shorter than ~100 ms.
 
 The Pico can present a Nintendo Switch gamepad instead of a keyboard and mouse.
 The Switch does not accept arbitrary HID gamepads, so the device reports the
@@ -365,7 +366,7 @@ Type `help` once connected for a list of commands.
 | `macro autorun off` | Disable autorun |
 | `macro autorun status` | Show the current autorun setting |
 
-### Gamepad (pad mode)
+### Gamepad (Switch)
 
 | Command | Description |
 |---|---|

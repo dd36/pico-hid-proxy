@@ -162,32 +162,37 @@ deliberate — do not relax them without understanding why they exist:
 - `reboot` and nested `macro_*` commands are rejected inside macro bodies. Autorun
   plus `reboot` is an unbreakable boot loop that requires a BOOTSEL reflash to clear.
 
-### Switch pad mode
+### Switch gamepad
+
+There are no USB modes. `boot.py` always registers one composite device: gamepad +
+keyboard + mouse + absolute mouse + CDC serial. The Switch uses the gamepad, a
+PlayStation uses the keyboard/mouse and ignores the gamepad it cannot authenticate;
+both verified on hardware. (Earlier revisions had `hid`/`pad`/`padonly` modes and a
+`usb mode` command — all removed. `config.get_usb_mode` is gone; a stale `usb_mode`
+key in an old `config.json` is simply ignored.)
 
 The Switch accepts only certain controllers, so `SwitchGamepadHID` reports the
-descriptor and USB ids of a HORI HORIPAD for Nintendo Switch (`0x0F0D` / `0x00C1`).
-**The descriptor and the 8-byte report layout are not free parameters** — they have
-to match that controller or the console ignores the device. `tests/test_pad.py`
-checks the descriptor's declared input size against `_PAD_REPORT_LEN`, which is the
-cheap way to catch a mismatch that would otherwise fail silently on hardware.
+descriptor and USB ids of a HORI HORIPAD for Nintendo Switch (`0x0F0D` / `0x00C1`),
+byte-for-byte the descriptor from `controllercustom/ESP32nslite`. **The descriptor,
+the 8-byte report layout, the 14-button count, the `0x0F` neutral hat and the
+continuous ~15 ms report stream are all load-bearing** — get any wrong and the
+console ignores the device. `tests/test_pad.py` pins the descriptor length, report
+size, button count, PID and neutral hat. `id_vendor`/`id_product` apply to the whole
+device, so the board enumerates as HORI, not a Raspberry Pi — `host/host.py` matches
+both vendor ids.
 
-`id_vendor` / `id_product` apply to the whole USB device, not one interface, so in
-pad mode the board stops enumerating as a Raspberry Pi — `host/host.py` matches
-both vendor ids for that reason.
-
-The Switch **does** accept a composite device — CDC serial alongside the gamepad —
-verified on hardware, so pad mode keeps the serial console. A `padonly` mode
-(`builtin_driver=False`) existed briefly while the descriptor was still wrong; it
-was removed once composite was confirmed, since it offered nothing and could strand
-the device with no serial and no WiFi. `config.get_usb_mode()` maps a stale
-`"padonly"` to `"hid"` so old config cannot resurrect it.
-
-Three things make a bad gamepad indistinguishable from a rejected one, and all
-three bit during bring-up:
+Four things make a working gamepad look like a rejected one; every one bit during
+bring-up and each produces the same "nothing happens":
 
 - **After any USB re-enumeration, no input registers until HOME is pressed once.**
-- **Holds under ~100 ms are silently dropped**; 200 ms is reliable, which is why
-  `button_tap` defaults to it.
+- **Holds shorter than ~100 ms are silently dropped; ~130 ms is the reliable
+  default** (200 ms overshoots into key auto-repeat on some menus). Waking from
+  sleep needs a much longer hold, ~800 ms.
+- **A long *blocking* hold drops the controller.** `pad tap`/`pad dpad` must NOT
+  hold with `time.sleep_ms()` — that freezes the asyncio loop and stops
+  `_pad_stream_task`, and the Switch drops a controller that goes quiet. Taps press
+  now and schedule the release from a background task (`_pad_release_after` in
+  `main.py`) so the stream keeps running. `tests/test_player.py` guards this.
 - Pro Controller Wired Communication must be enabled console-side.
 
 Any of them produces "nothing happens", which is also what a wrong descriptor
