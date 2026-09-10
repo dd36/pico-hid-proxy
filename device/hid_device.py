@@ -434,9 +434,14 @@ class SwitchGamepadHID(HIDInterface):
         self._buttons &= ~bit
         self._send()
 
-    def button_tap(self, bit, hold_ms=60):
-        """Press and release. The Switch drops presses shorter than a frame or
-        two, so a tap has to be held long enough to be sampled."""
+    def button_tap(self, bit, hold_ms=200):
+        """Press and release.
+
+        200 ms, not the 60 ms this originally used: on hardware an 80 ms d-pad
+        hold was too short to register at all, while 200 ms was reliable. The
+        Switch samples input far less often than the 8 ms report interval
+        suggests, so short taps are silently dropped.
+        """
         self._buttons |= bit
         self._send()
         time.sleep_ms(hold_ms)
