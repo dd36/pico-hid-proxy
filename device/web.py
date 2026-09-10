@@ -113,7 +113,9 @@ during the countdown.</p>
 <tr><td>mouse up &lt;btn&gt;</td><td>Release mouse button</td></tr>
 <tr><td>mouse scroll &lt;n&gt;</td><td>Scroll wheel (+ up, - down)</td></tr>
 <tr><td>mouse release</td><td>Release all held buttons</td></tr>
-<tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">Gamepad (pad mode)</td></tr>
+<tr><td colspan="2" style="color:#0ff;font-weight:bold;border:none;padding-top:8px">Gamepad (Switch)</td></tr>
+<tr><td>buttons</td><td>a b x y &nbsp; l r zl zr &nbsp; plus minus &nbsp; home capture &nbsp; lstick rstick</td></tr>
+<tr><td>directions</td><td>up down left right &nbsp; upleft upright downleft downright &nbsp; neutral</td></tr>
 <tr><td>pad tap &lt;btn&gt;[+&hellip;] [ms]</td><td>Press &amp; release; '+' joins a chord, e.g. l+r. default 130 ms</td></tr>
 <tr><td>pad down / up &lt;button&gt;</td><td>Hold / release a button</td></tr>
 <tr><td>pad dpad &lt;dir&gt; [ms]</td><td>Tap a direction, default 130 ms; 'neutral' just releases</td></tr>
