@@ -319,7 +319,7 @@ def _dispatch(cmd, from_web=False):
 
     # Gamepad (Switch pad mode)
     if k == "pad_tap":
-        gamepad.button_tap(p["bit"])
+        gamepad.button_tap(p["bit"], p.get("hold", 130))
         return "OK"
     if k == "pad_down":
         gamepad.button_down(p["bit"])
@@ -328,7 +328,11 @@ def _dispatch(cmd, from_web=False):
         gamepad.button_up(p["bit"])
         return "OK"
     if k == "pad_dpad":
-        gamepad.dpad(p["hat"])
+        hold = p.get("hold", 0)
+        if hold > 0:
+            gamepad.dpad_tap(p["hat"], hold)
+        else:
+            gamepad.dpad(p["hat"])
         return "OK"
     if k == "pad_stick":
         gamepad.stick(p["left"], p["x"], p["y"])

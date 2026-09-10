@@ -276,6 +276,25 @@ def parse(line):
     return "unknown command '{}'".format(verb)
 
 
+# Default hold for a self-releasing pad press. 130 ms registers one input
+# reliably on the Switch while staying under its key-auto-repeat threshold;
+# 60-80 ms was too short, 200 ms overshot into repeat on some menus.
+PAD_DEFAULT_HOLD_MS = 130
+
+
+def _pad_hold(extra):
+    """Parse an optional trailing hold time (ms). Returns int, or an error str."""
+    if not extra:
+        return PAD_DEFAULT_HOLD_MS
+    try:
+        ms = int(extra[0])
+    except ValueError:
+        return "hold time must be an integer (ms)"
+    if ms < 0:
+        return "hold time must be >= 0"
+    return ms
+
+
 def _parse_pad(rest):
     """Parse a 'pad ...' command. Button and hat names live in hid_device so
     the wire format and the vocabulary cannot drift apart."""
@@ -291,22 +310,36 @@ def _parse_pad(rest):
     if sub in ("tap", "down", "up"):
         if not arg:
             return "pad {}: missing button name".format(sub)
-        name = arg.split()[0].lower()
+        parts = arg.split()
+        name = parts[0].lower()
         bit = PAD_BUTTONS.get(name)
         if bit is None:
             return "pad {}: unknown button '{}' ({})".format(
                 sub, name, "/".join(sorted(PAD_BUTTONS)))
+        if sub == "tap":
+            hold = _pad_hold(parts[1:])
+            if isinstance(hold, str):
+                return "pad tap: " + hold
+            return Command("pad_tap", {"bit": bit, "hold": hold})
         return Command("pad_" + sub, {"bit": bit})
 
     if sub == "dpad":
         if not arg:
             return "pad dpad: missing direction ({})".format("/".join(sorted(PAD_HAT)))
-        name = arg.split()[0].lower()
+        parts = arg.split()
+        name = parts[0].lower()
         hat = PAD_HAT.get(name)
         if hat is None:
             return "pad dpad: unknown direction '{}' ({})".format(
                 name, "/".join(sorted(PAD_HAT)))
-        return Command("pad_dpad", {"hat": hat})
+        # A neutral hold is meaningless; treat "pad dpad neutral" as a plain set.
+        if name in ("neutral", "center", "none"):
+            return Command("pad_dpad", {"hat": hat})
+        hold = _pad_hold(parts[1:])
+        if isinstance(hold, str):
+            return "pad dpad: " + hold
+        # hold > 0 means press-hold-release in one command; 0 just sets it.
+        return Command("pad_dpad", {"hat": hat, "hold": hold})
 
     if sub == "stick":
         args = arg.split()

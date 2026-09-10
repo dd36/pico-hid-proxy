@@ -31,11 +31,19 @@ for line, kind in [("pad tap a","pad_tap"), ("pad down zr","pad_down"), ("pad up
     r = parse(line)
     check("%-26r -> %s" % (line, kind), not isinstance(r,str) and r.kind==kind, r)
 
+check("pad tap a default hold 130", parse("pad tap a").params.get("hold")==130, parse("pad tap a").params)
+check("pad tap a 250 -> hold 250", parse("pad tap a 250").params.get("hold")==250, parse("pad tap a 250").params)
+check("pad dpad right (no ms) -> hold 130", parse("pad dpad right").params.get("hold")==130, parse("pad dpad right").params)
+check("pad dpad right 90 -> hold 90", parse("pad dpad right 90").params.get("hold")==90, parse("pad dpad right 90").params)
+check("pad dpad neutral has no hold", "hold" not in parse("pad dpad neutral").params, parse("pad dpad neutral").params)
+
 print("\n-- rejected --")
 for line, frag in [("pad","missing subcommand"), ("pad tap","missing button"),
                    ("pad tap nope","unknown button"), ("pad dpad sideways","unknown direction"),
                    ("pad stick left 5","need <left|right>"), ("pad stick left a b","must be integers"),
-                   ("pad stick left 200 0","within -100..100"), ("pad bogus","unknown subcommand")]:
+                   ("pad stick left 200 0","within -100..100"), ("pad bogus","unknown subcommand"),
+                   ("pad tap a xx","must be an integer"),
+                   ("pad dpad right -5","must be >= 0")]:
     r = parse(line)
     check("%-26r rejected" % line, isinstance(r,str) and frag in r, r)
 

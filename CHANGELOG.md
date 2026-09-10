@@ -59,6 +59,14 @@ Versions are cut automatically from conventional commit messages by
   magic before replacing anything, and implements the `--clean` flag the README
   already documented.
 
+### Changed
+
+- `pad tap` and `pad dpad` take an optional hold time in ms, defaulting to 130.
+  `pad dpad <dir>` now presses, holds and releases in one command (with `neutral`
+  still meaning a plain release), so a single d-pad step no longer needs a macro to
+  get the timing right. 130 ms was measured on hardware: 60-80 ms was too short to
+  register, 200 ms overshot into the Switch's key auto-repeat.
+
 ### Fixed
 
 - WiFi reconnects on its own. `wifi.connect()` ran exactly once at boot with a
