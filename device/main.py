@@ -645,7 +645,7 @@ async def _main_async():
     # intervene.
     asyncio.create_task(_wifi_watch_task())
     asyncio.create_task(_button_task())
-    if usb_mode == "pad":
+    if usb_mode in ("pad", "all"):
         asyncio.create_task(_pad_stream_task())
     _start_autorun()
 

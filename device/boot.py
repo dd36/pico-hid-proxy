@@ -28,15 +28,21 @@ try:
 except Exception:
     pass  # unreadable config must not stop USB coming up
 
-if usb_mode == "pad":
+if usb_mode in ("pad", "all"):
     try:
+        # "all" registers the gamepad plus keyboard and mouse, so a single
+        # firmware could serve both consoles: the Switch uses the gamepad and
+        # a PlayStation ignores it (an unauthenticated controller) while using
+        # the keyboard and mouse. Experimental -- the Switch is fussy, and this
+        # deviates from a real HORIPAD far more than adding CDC did.
+        itfs = (gamepad,) if usb_mode == "pad" else (gamepad, keyboard, mouse, abs_mouse)
         # The Switch identifies controllers by VID/PID, so these apply to the
         # whole device -- in pad mode the Pico no longer enumerates as a
         # Raspberry Pi, and host.py has to look for the HORI ids too.
         # Composite: gamepad plus CDC serial. The Switch accepts this once the
         # descriptor is right, so there is no reason to give up the console.
         usb.device.get().init(
-            gamepad,
+            *itfs,
             builtin_driver=True,
             id_vendor=PAD_VID,
             id_product=PAD_PID,
@@ -48,5 +54,5 @@ if usb_mode == "pad":
     except Exception:
         usb_mode = "hid"  # fall back rather than leave the device dark
 
-if usb_mode != "pad":
+if usb_mode not in ("pad", "all"):
     usb.device.get().init(keyboard, mouse, abs_mouse, builtin_driver=True)
