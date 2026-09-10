@@ -197,15 +197,24 @@ ROM behavior that runs before any of this code, so flashing is unaffected.
 
 ## Nintendo Switch gamepad mode
 
-> [!WARNING]
-> Untested against real hardware. The descriptor and USB ids match the controller
-> the Switch is known to accept, but nothing here has been confirmed on a console
-> yet.
+> [!IMPORTANT]
+> After any USB re-enumeration — a reboot, a mode change, a replug — the Switch
+> ignores input until **Home** is pressed once. Press Home first, then everything
+> else registers. A d-pad press that does nothing looks exactly like the console
+> rejecting the device, so this is worth knowing before you debug anything.
+>
+> Also enable **System Settings → Controllers and Sensors → Pro Controller Wired
+> Communication**, or the Switch ignores wired USB controllers entirely.
+>
+> Hold buttons for ~200 ms. The Switch samples input far less often than the 8 ms
+> report interval suggests, and shorter taps are silently dropped.
 
 The Pico can present a Nintendo Switch gamepad instead of a keyboard and mouse.
 The Switch does not accept arbitrary HID gamepads, so the device reports the
-descriptor and USB ids of a HORI Pokken Tournament Pro Pad (`0x0F0D` / `0x0092`),
-which needs no authentication handshake. Unlike PlayStation, no controller
+descriptor and USB ids of a HORI HORIPAD for Nintendo Switch (`0x0F0D` / `0x00C1`),
+which needs no authentication handshake. The descriptor is byte-for-byte the one
+used by [ESP32nslite](https://github.com/controllercustom/ESP32nslite) — the button
+count, padding entries and trailing constant byte are all load-bearing. Unlike PlayStation, no controller
 authentication is involved.
 
 Switch mode, then reboot to apply:
@@ -222,7 +231,7 @@ Pad mode gives you real analog sticks — `pad stick left 37 -12` is a single re
 which keyboard emulation cannot express.
 
 > [!NOTE]
-> In pad mode the board reports the Pokken pad's USB ids, so it no longer
+> In pad mode the board reports the HORIPAD's USB ids, so it no longer
 > enumerates as a Raspberry Pi. `host/host.py` looks for both. WiFi credentials and
 > the API token persist across the mode change, so configure them first if you plan
 > to rely on the web UI.

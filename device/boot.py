@@ -3,7 +3,7 @@
 #
 #   "hid" (default) — CDC serial + HID keyboard + mouse + absolute mouse
 #   "pad"           — CDC serial + a Nintendo Switch gamepad, with the USB
-#                     vendor/product ids of a HORI Pokken Tournament Pro Pad
+#                     vendor/product ids of a HORI HORIPAD for Nintendo Switch
 #
 # This runs before main.py and before anything else can recover, so every step
 # is guarded: a bad config value or a failed pad init falls back to "hid"
@@ -28,17 +28,16 @@ try:
 except Exception:
     pass  # unreadable config must not stop USB coming up
 
-if usb_mode in ("pad", "padonly"):
+if usb_mode == "pad":
     try:
         # The Switch identifies controllers by VID/PID, so these apply to the
         # whole device -- in pad mode the Pico no longer enumerates as a
-        # Raspberry Pi, and host.py has to look for the Pokken ids too.
-        # "padonly" presents the gamepad and nothing else, matching the known
-        # working Switch emulations exactly. That costs the serial console --
-        # the web UI over WiFi becomes the only way back to "hid".
+        # Raspberry Pi, and host.py has to look for the HORI ids too.
+        # Composite: gamepad plus CDC serial. The Switch accepts this once the
+        # descriptor is right, so there is no reason to give up the console.
         usb.device.get().init(
             gamepad,
-            builtin_driver=(usb_mode == "pad"),
+            builtin_driver=True,
             id_vendor=PAD_VID,
             id_product=PAD_PID,
             bcd_device=PAD_BCD_DEVICE,
@@ -49,5 +48,5 @@ if usb_mode in ("pad", "padonly"):
     except Exception:
         usb_mode = "hid"  # fall back rather than leave the device dark
 
-if usb_mode not in ("pad", "padonly"):
+if usb_mode != "pad":
     usb.device.get().init(keyboard, mouse, abs_mouse, builtin_driver=True)

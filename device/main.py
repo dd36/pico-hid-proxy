@@ -462,10 +462,10 @@ async def _serial_task():
         poller = select.poll()
         poller.register(sys.stdin.buffer, select.POLLIN)
     except Exception:
-        # padonly mode has no CDC interface, so there is no serial to read.
-        # The web API is the only control path; keep this task idle rather
-        # than letting it take down the event loop.
-        _respond("SERIAL unavailable (usb mode padonly)")
+        # No CDC interface to read from. Both current modes provide one, so
+        # this should not happen -- but idle rather than taking down the event
+        # loop and with it the web API, which would be the only way back.
+        _respond("SERIAL unavailable")
         while True:
             await asyncio.sleep_ms(1000)
     buf = bytearray()
@@ -645,7 +645,7 @@ async def _main_async():
     # intervene.
     asyncio.create_task(_wifi_watch_task())
     asyncio.create_task(_button_task())
-    if usb_mode in ("pad", "padonly"):
+    if usb_mode == "pad":
         asyncio.create_task(_pad_stream_task())
     _start_autorun()
 

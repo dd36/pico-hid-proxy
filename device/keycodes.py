@@ -159,7 +159,8 @@ def char_to_report(ch):
 
 
 # --- Nintendo Switch gamepad (pad mode) --------------------------------------
-# Button name -> bit in the 16-bit button field of the Pokken pad report.
+# Button name -> bit in the button field of the HORIPAD report. 14 buttons are
+# declared in the descriptor; bits 14-15 are padding.
 PAD_BUTTONS = {
     "y": 0x0001,
     "b": 0x0002,

@@ -167,7 +167,7 @@ deliberate — do not relax them without understanding why they exist:
 ### Switch pad mode
 
 The Switch accepts only certain controllers, so `SwitchGamepadHID` reports the
-descriptor and USB ids of a HORI Pokken Tournament Pro Pad (`0x0F0D` / `0x0092`).
+descriptor and USB ids of a HORI HORIPAD for Nintendo Switch (`0x0F0D` / `0x00C1`).
 **The descriptor and the 8-byte report layout are not free parameters** — they have
 to match that controller or the console ignores the device. `tests/test_pad.py`
 checks the descriptor's declared input size against `_PAD_REPORT_LEN`, which is the
@@ -177,11 +177,23 @@ cheap way to catch a mismatch that would otherwise fail silently on hardware.
 pad mode the board stops enumerating as a Raspberry Pi — `host/host.py` matches
 both vendor ids for that reason.
 
-Whether the Switch accepts a *composite* device (CDC serial alongside the gamepad)
-is unverified. If it refuses, the fallback is `builtin_driver=False` for a
-gamepad-only device, which costs the serial console entirely: WiFi and token would
-have to be configured in `hid` mode first, and a WiFi failure in pad mode would
-lock you out until you reflash.
+The Switch **does** accept a composite device — CDC serial alongside the gamepad —
+verified on hardware, so pad mode keeps the serial console. A `padonly` mode
+(`builtin_driver=False`) existed briefly while the descriptor was still wrong; it
+was removed once composite was confirmed, since it offered nothing and could strand
+the device with no serial and no WiFi. `config.get_usb_mode()` maps a stale
+`"padonly"` to `"hid"` so old config cannot resurrect it.
+
+Three things make a bad gamepad indistinguishable from a rejected one, and all
+three bit during bring-up:
+
+- **After any USB re-enumeration, no input registers until HOME is pressed once.**
+- **Holds under ~100 ms are silently dropped**; 200 ms is reliable, which is why
+  `button_tap` defaults to it.
+- Pro Controller Wired Communication must be enabled console-side.
+
+Any of them produces "nothing happens", which is also what a wrong descriptor
+produces. Change one variable at a time and press Home before concluding anything.
 
 Button and hat name tables live in `keycodes.py`, not `hid_device.py`, so that
 `protocol.py` stays free of hardware imports — see the parse/dispatch split above.

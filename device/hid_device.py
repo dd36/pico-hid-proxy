@@ -335,12 +335,12 @@ class AbsMouseHID(HIDInterface):
 
 # --- Nintendo Switch gamepad -------------------------------------------------
 #
-# The Switch does not accept arbitrary HID gamepads. It does accept a small set
-# of licensed controllers, and the HORI Pokken Tournament Pro Pad
-# (VID 0x0F0D / PID 0x0092) is the one every Switch-automation project uses,
-# because it needs no authentication handshake. The descriptor and the 8-byte
-# report layout below have to match that controller for the console to accept
-# the device -- this is not a place to be creative.
+# The Switch does not accept arbitrary HID gamepads. It accepts a small set of
+# licensed controllers, and the HORI HORIPAD for Nintendo Switch
+# (VID 0x0F0D / PID 0x00C1) needs no authentication handshake. The descriptor
+# and the 8-byte report layout below have to match it for the console to accept
+# the device -- this is not a place to be creative. The Pokken Tournament Pro
+# Pad (PID 0x0092) is a different controller and does not work here.
 
 _PAD_REPORT_DESC = bytes([
     # Byte-for-byte match of the descriptor in controllercustom/ESP32nslite,
@@ -390,14 +390,14 @@ _PAD_REPORT_DESC = bytes([
 
 _PAD_REPORT_LEN = const(8)
 
-# USB ids of the HORI Pokken Tournament Pro Pad. boot.py applies these to the
+# USB ids of the HORI HORIPAD for Nintendo Switch. boot.py applies these to the
 # whole device in pad mode, so the Pico stops enumerating as a Raspberry Pi.
 PAD_VID = const(0x0F0D)
 PAD_PID = const(0x00C1)
 PAD_BCD_DEVICE = const(0x0572)
 
 class SwitchGamepadHID(HIDInterface):
-    """USB HID gamepad the Nintendo Switch accepts, as a Pokken Tournament pad."""
+    """USB HID gamepad the Nintendo Switch accepts, as a HORI HORIPAD."""
 
     def __init__(self):
         super().__init__(
