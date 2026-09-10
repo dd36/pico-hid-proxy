@@ -60,6 +60,12 @@ Versions are cut automatically from conventional commit messages by
 
 ### Fixed
 
+- WiFi reconnects on its own. `wifi.connect()` ran exactly once at boot with a
+  15 second window, so one miss — a slow AP, a reboot, a power cycle into a
+  console — left the device unreachable for the rest of the session with no way
+  back except physical access. It now rechecks every 30 seconds and restarts the
+  web server once reconnected.
+
 - Macros are stored under `/macros.d/` rather than `/macros/`. The filesystem root
   precedes `.frozen` on `sys.path`, so the `/macros` directory shadowed the frozen
   `macros` module: saving a single macro made the device fail to start its command

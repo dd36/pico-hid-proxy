@@ -37,6 +37,10 @@ wifi connect MyNetwork MyPassword
 webui enable
 ```
 
+The device rechecks the connection every 30 seconds and reconnects on its own if
+it drops, so a missed connection at boot or an AP hiccup recovers without physical
+access.
+
 Credentials, token, and enable states persist across reboots — the Pico will auto-connect on power up.
 
 ## WiFi Web Control

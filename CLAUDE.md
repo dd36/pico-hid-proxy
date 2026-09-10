@@ -148,6 +148,12 @@ one — do not raise the rate without rechecking that against USB HID timing. Th
 task exits quietly if `rp2.bootsel_button` is missing, so the feature degrades
 rather than breaking boot.
 
+`_wifi_watch_task()` rechecks the connection every 30 s and reconnects if it
+dropped, then calls `_try_start_web()`. Before it existed `wifi.connect()` ran once
+at boot with a 15 s window, and a single miss meant no network until someone
+physically intervened — which on a device that lives inside a games console is
+expensive. Do not "simplify" this back to a one-shot connect.
+
 Autorun starts a macro after boot independently of WiFi. Safety constraints, all
 deliberate — do not relax them without understanding why they exist:
 

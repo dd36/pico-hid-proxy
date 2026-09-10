@@ -71,6 +71,9 @@ _capture = None
 # Handle for a pending autorun task during its startup delay.
 _autorun_handle = None
 
+# How often to check that WiFi is still up, milliseconds.
+_WIFI_CHECK_MS = 30000
+
 # How often to re-send the gamepad report in pad mode, milliseconds.
 _PAD_STREAM_MS = 15
 
@@ -529,6 +532,31 @@ def _button_action():
     return "BUTTON " + macros.player.start(name, loop)
 
 
+async def _wifi_watch_task():
+    """Keep WiFi up.
+
+    wifi.connect() used to run exactly once at boot with a 15 second window.
+    A single miss -- a slow AP, a reboot, a power cycle into a console --
+    left the device with no network for the rest of the session and no way
+    back except physical access. That cost six recovery cycles in one day.
+    """
+    while True:
+        await asyncio.sleep_ms(_WIFI_CHECK_MS)
+        if wifi.is_connected():
+            continue
+        ssid, password = config.get_wifi()
+        if not ssid or not password:
+            continue
+        try:
+            ok, msg = wifi.connect(ssid, password)
+        except Exception as e:
+            _respond("WIFI retry failed: {}".format(e))
+            continue
+        if ok:
+            _respond("WIFI reconnected " + msg)
+            _try_start_web()
+
+
 async def _pad_stream_task():
     """Re-send the gamepad report continuously while in a pad mode.
 
@@ -615,6 +643,7 @@ async def _main_async():
     # Autorun is deliberately independent of WiFi so the device works
     # standalone; the delay window and the BOOTSEL button are the ways to
     # intervene.
+    asyncio.create_task(_wifi_watch_task())
     asyncio.create_task(_button_task())
     if usb_mode in ("pad", "padonly"):
         asyncio.create_task(_pad_stream_task())
