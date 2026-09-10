@@ -110,7 +110,7 @@ Mouse:
   mouse release         - Release all held buttons
 
 Gamepad (pad mode):
-  pad tap <button> [ms] - Press+release, default 130ms (a/b/x/y/l/r/zl/zr/plus/minus/home/capture/lstick/rstick)
+  pad tap <btn>[+..] [ms] - Press+release; '+' joins a chord (e.g. l+r). default 130ms
   pad down/up <button>  - Hold / release a button
   pad dpad <dir> [ms]  - Tap a direction (default 130ms); 'neutral' just releases
   pad stick <l|r> <x> <y> - Analog stick, -100..100 per axis

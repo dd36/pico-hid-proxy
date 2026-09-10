@@ -369,13 +369,16 @@ Type `help` once connected for a list of commands.
 
 | Command | Description |
 |---|---|
-| `pad tap <button> [ms]` | Press and release a button (default 130 ms hold) |
+| `pad tap <button>[+…] [ms]` | Press and release; join buttons with `+` for a chord (default 130 ms) |
 | `pad down <button>` / `pad up <button>` | Hold / release a button |
 | `pad dpad <direction> [ms]` | D-pad tap: `up`/`right`/… held `ms` (default 130), or `neutral` to just release |
 | `pad stick <left\|right> <x> <y>` | Analog stick, −100 to 100 each axis |
 | `pad release` | Release all buttons, centre both sticks and the d-pad |
 
 Buttons: `a` `b` `x` `y` `l` `r` `zl` `zr` `plus` `minus` `home` `capture` `lstick` `rstick`
+
+Combine buttons with `+`, e.g. `pad tap l+r` (the Switch pairing chord) or
+`pad down zl+zr` — the buttons press on a single report, truly simultaneous.
 
 ### WiFi
 

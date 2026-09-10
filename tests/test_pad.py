@@ -31,6 +31,10 @@ for line, kind in [("pad tap a","pad_tap"), ("pad down zr","pad_down"), ("pad up
     r = parse(line)
     check("%-26r -> %s" % (line, kind), not isinstance(r,str) and r.kind==kind, r)
 
+check("pad tap l+r combines bits",
+      parse("pad tap l+r").params["bit"] == keycodes.PAD_BUTTONS["l"]|keycodes.PAD_BUTTONS["r"],
+      hex(parse("pad tap l+r").params["bit"]))
+check("pad down a+b chord", parse("pad down a+b").params["bit"] == keycodes.PAD_BUTTONS["a"]|keycodes.PAD_BUTTONS["b"])
 check("pad tap a default hold 130", parse("pad tap a").params.get("hold")==130, parse("pad tap a").params)
 check("pad tap a 250 -> hold 250", parse("pad tap a 250").params.get("hold")==250, parse("pad tap a 250").params)
 check("pad dpad right (no ms) -> hold 130", parse("pad dpad right").params.get("hold")==130, parse("pad dpad right").params)
@@ -43,7 +47,8 @@ for line, frag in [("pad","missing subcommand"), ("pad tap","missing button"),
                    ("pad stick left 5","need <left|right>"), ("pad stick left a b","must be integers"),
                    ("pad stick left 200 0","within -100..100"), ("pad bogus","unknown subcommand"),
                    ("pad tap a xx","must be an integer"),
-                   ("pad dpad right -5","must be >= 0")]:
+                   ("pad dpad right -5","must be >= 0"),
+                   ("pad tap a+nope","unknown button")]:
     r = parse(line)
     check("%-26r rejected" % line, isinstance(r,str) and frag in r, r)
 

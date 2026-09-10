@@ -311,11 +311,15 @@ def _parse_pad(rest):
         if not arg:
             return "pad {}: missing button name".format(sub)
         parts = arg.split()
-        name = parts[0].lower()
-        bit = PAD_BUTTONS.get(name)
-        if bit is None:
-            return "pad {}: unknown button '{}' ({})".format(
-                sub, name, "/".join(sorted(PAD_BUTTONS)))
+        # One or more buttons joined by '+' -> one combined bitmask, so a chord
+        # presses on a single report rather than across two.
+        bit = 0
+        for name in parts[0].lower().split("+"):
+            b = PAD_BUTTONS.get(name)
+            if b is None:
+                return "pad {}: unknown button '{}' ({})".format(
+                    sub, name, "/".join(sorted(PAD_BUTTONS)))
+            bit |= b
         if sub == "tap":
             hold = _pad_hold(parts[1:])
             if isinstance(hold, str):

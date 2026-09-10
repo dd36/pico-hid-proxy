@@ -61,6 +61,9 @@ Versions are cut automatically from conventional commit messages by
 
 ### Changed
 
+- `pad tap`/`pad down`/`pad up` accept a chord: buttons joined with `+`
+  (`pad tap l+r`) press on a single report, so they are truly simultaneous rather
+  than one frame apart.
 - `pad tap` and `pad dpad` take an optional hold time in ms, defaulting to 130.
   `pad dpad <dir>` now presses, holds and releases in one command (with `neutral`
   still meaning a plain release), so a single d-pad step no longer needs a macro to
