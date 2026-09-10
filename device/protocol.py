@@ -134,10 +134,10 @@ def parse(line):
             return Command("usb_status")
         if sub == "mode":
             if len(parts_u) < 2:
-                return "usb mode: need hid or pad"
+                return "usb mode: need hid, pad or padonly"
             mode = parts_u[1].lower()
-            if mode not in ("hid", "pad"):
-                return "usb mode: unknown mode '{}' (hid/pad)".format(mode)
+            if mode not in ("hid", "pad", "padonly"):
+                return "usb mode: unknown mode '{}' (hid/pad/padonly)".format(mode)
             return Command("usb_mode_set", {"mode": mode})
         return "usb: unknown subcommand '{}' (mode/status)".format(sub)
 

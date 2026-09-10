@@ -27,14 +27,17 @@ try:
 except Exception:
     pass  # unreadable config must not stop USB coming up
 
-if usb_mode == "pad":
+if usb_mode in ("pad", "padonly"):
     try:
         # The Switch identifies controllers by VID/PID, so these apply to the
         # whole device -- in pad mode the Pico no longer enumerates as a
         # Raspberry Pi, and host.py has to look for the Pokken ids too.
+        # "padonly" presents the gamepad and nothing else, matching the known
+        # working Switch emulations exactly. That costs the serial console --
+        # the web UI over WiFi becomes the only way back to "hid".
         usb.device.get().init(
             gamepad,
-            builtin_driver=True,
+            builtin_driver=(usb_mode == "pad"),
             id_vendor=PAD_VID,
             id_product=PAD_PID,
             manufacturer_str="HORI CO.,LTD.",
@@ -43,5 +46,5 @@ if usb_mode == "pad":
     except Exception:
         usb_mode = "hid"  # fall back rather than leave the device dark
 
-if usb_mode != "pad":
+if usb_mode not in ("pad", "padonly"):
     usb.device.get().init(keyboard, mouse, abs_mouse, builtin_driver=True)

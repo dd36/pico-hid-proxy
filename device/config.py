@@ -99,7 +99,7 @@ def clear_autorun():
 # before USB comes up, so a bad value must never raise.
 def get_usb_mode():
     mode = load().get("usb_mode", "hid")
-    return mode if mode in ("hid", "pad") else "hid"
+    return mode if mode in ("hid", "pad", "padonly") else "hid"
 
 
 def set_usb_mode(mode):

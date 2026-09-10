@@ -452,8 +452,16 @@ def _try_start_web():
 
 async def _serial_task():
     """Async task: read and process serial commands."""
-    poller = select.poll()
-    poller.register(sys.stdin.buffer, select.POLLIN)
+    try:
+        poller = select.poll()
+        poller.register(sys.stdin.buffer, select.POLLIN)
+    except Exception:
+        # padonly mode has no CDC interface, so there is no serial to read.
+        # The web API is the only control path; keep this task idle rather
+        # than letting it take down the event loop.
+        _respond("SERIAL unavailable (usb mode padonly)")
+        while True:
+            await asyncio.sleep_ms(1000)
     buf = bytearray()
 
     while True:
