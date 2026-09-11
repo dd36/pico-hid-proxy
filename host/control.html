@@ -13,7 +13,9 @@
   .conn{display:flex;gap:6px;margin:8px 0}
   .conn input{flex:1;min-width:0;padding:7px;border:1px solid var(--edge);border-radius:6px;
               background:var(--panel);color:var(--fg);font-size:13px}
-  #dot{width:12px;height:12px;border-radius:50%;background:#555;align-self:center;flex:none}
+  #status{display:flex;align-items:center;gap:6px;padding:0 10px;border:1px solid var(--edge);
+          border-radius:6px;background:var(--panel);font-size:12px;color:var(--dim);cursor:pointer;flex:none}
+  #dot{width:10px;height:10px;border-radius:50%;background:#555;flex:none}
   #dot.ok{background:#3ad29f}#dot.err{background:var(--warn)}
   .tabs{display:flex;gap:6px;margin:10px 0}
   .tabs button{flex:1;padding:9px;border:1px solid var(--edge);border-radius:6px;background:var(--panel);
@@ -54,7 +56,7 @@
 <div class="conn">
   <input id="ip" placeholder="192.168.x.x" autocomplete="off" autocapitalize="off" spellcheck="false">
   <input id="tok" type="password" placeholder="token" autocomplete="off">
-  <span id="dot" title="click to ping"></span>
+  <span id="status" title="tap to re-test"><span id="dot"></span><span id="stxt">test</span></span>
 </div>
 
 <div class="tabs">
@@ -235,19 +237,20 @@ $('#recSave').onclick=()=>{
   log.textContent="saved macro '"+n+"' (run: macro run "+n+")";
 };
 // ping uses a normal fetch to /health (no auth, CORS-safe via opaque) for the dot
+const stxt=()=>document.querySelector('#stxt');
 async function ping(){
-  if(!ip.value){dot.className='';log.textContent='';return;}
-  dot.className='';log.textContent='testing '+ip.value+'…';
+  if(!ip.value){dot.className='';stxt().textContent='test';log.textContent='';return;}
+  dot.className='';stxt().textContent='…';log.textContent='testing '+ip.value+'…';
   try{
     await fetch('http://'+ip.value+'/health',{mode:'no-cors'});
-    dot.className='ok';
+    dot.className='ok';stxt().textContent='reachable';
     log.textContent='reachable at '+ip.value+' (token is not checked here)';
   }catch(e){
-    dot.className='err';
+    dot.className='err';stxt().textContent='no response';
     log.textContent='no response from '+ip.value;
   }
 }
-dot.onclick=ping;
+document.querySelector('#status').onclick=ping;
 
 // tabs
 $$('.tabs button').forEach(b=>b.onclick=()=>{
