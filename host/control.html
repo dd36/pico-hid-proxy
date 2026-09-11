@@ -159,6 +159,23 @@
   </div>
 </div>
 
+<div class="lbl" style="margin-top:16px">Record</div>
+<div class="row2">
+  <button class="k" id="recBtn">● Record</button>
+  <button class="k" id="recClear">Clear</button>
+</div>
+<textarea id="recOut" rows="6" spellcheck="false" placeholder="recorded commands appear here as you tap while recording" style="margin-top:8px;font-family:monospace;font-size:13px"></textarea>
+<div class="row2" style="margin-top:8px">
+  <input class="txt" id="recName" placeholder="macro name" style="grid-column:span 1">
+  <button class="k" id="recSave">Save to device</button>
+</div>
+<div class="row2" style="margin-top:8px">
+  <button class="k" id="recCopy">Copy</button>
+  <button class="k" id="recLoad">Load into text</button>
+</div>
+<small>Records the commands you tap, with the pauses between them as <code>sleep</code>.
+Save writes it to the Pico as a macro (run it with <code>macro run &lt;name&gt;</code>).</small>
+
 <div id="log">enter IP + token, tap the dot to test</div>
 
 <script>
@@ -173,10 +190,47 @@ tok.oninput=()=>{try{localStorage.setItem('pico_tok',tok.value)}catch(e){}};
 // can't answer. We watch the screen, not the response.
 function send(cmd){
   log.textContent=cmd;
+  recTap(cmd);
   fetch('http://'+ip.value+'/api',{method:'POST',mode:'no-cors',
     headers:{'Content-Type':'text/plain'},
     body:JSON.stringify({cmd:cmd,delay:0,token:tok.value})}).catch(()=>{});
 }
+
+// --- recorder: the page already generates every command, so recording is just
+//     capturing them with timing and emitting sleeps for the gaps. ---
+let recording=false, recLast=0, recBody=[];
+const recBtn=$('#recBtn'), recOut=$('#recOut');
+function recRender(){recOut.value=recBody.join('\n');recOut.scrollTop=recOut.scrollHeight;}
+function recTap(cmd){
+  if(!recording)return;
+  if(cmd.indexOf('macro ')===0)return;   // don't record macro-management commands
+
+  const now=performance.now();
+  if(recBody.length){                       // no leading sleep before the first command
+    const ms=Math.max(0,Math.round((now-recLast)/10)*10);
+    if(ms>0)recBody.push('sleep '+ms);
+  }
+  recBody.push(cmd);
+  recLast=now;
+  recRender();
+}
+recBtn.onclick=()=>{
+  recording=!recording;
+  recBtn.textContent=recording?'■ Stop':'● Record';
+  recBtn.classList.toggle('lock',recording);
+  if(recording)recLast=performance.now();
+};
+$('#recClear').onclick=()=>{recBody=[];recRender();};
+$('#recCopy').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(recOut.value);log.textContent='copied';};
+$('#recLoad').onclick=()=>{$('#typed').value=recOut.value;};
+$('#recSave').onclick=()=>{
+  const n=$('#recName').value.trim();
+  if(!n){log.textContent='name required';return;}
+  const body=recOut.value.trim();
+  if(!body){log.textContent='nothing recorded';return;}
+  send('macro save '+n+'\n'+body);          // body follows on later lines
+  log.textContent="saved macro '"+n+"' (run: macro run "+n+")";
+};
 // ping uses a normal fetch to /health (no auth, CORS-safe via opaque) for the dot
 async function ping(){
   dot.className='';
