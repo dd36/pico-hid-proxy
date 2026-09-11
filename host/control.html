@@ -164,16 +164,6 @@
   <button class="k" id="recBtn">● Record</button>
   <button class="k" id="recClear">Clear</button>
 </div>
-<div class="row2" style="margin-top:8px">
-  <select id="recGap" style="padding:9px;border:1px solid var(--edge);border-radius:6px;background:var(--panel);color:var(--fg);font-size:13px">
-    <option value="real">Pauses: keep real timing</option>
-    <option value="2000" selected>Pauses: cap at 2s</option>
-    <option value="1000">Pauses: cap at 1s</option>
-    <option value="fixed300">Pauses: fixed 300 ms</option>
-    <option value="fixed500">Pauses: fixed 500 ms</option>
-  </select>
-  <span></span>
-</div>
 <textarea id="recOut" rows="6" spellcheck="false" placeholder="recorded commands appear here as you tap while recording" style="margin-top:8px;font-family:monospace;font-size:13px"></textarea>
 <div class="row2" style="margin-top:8px">
   <input class="txt" id="recName" placeholder="macro name" style="grid-column:span 1">
@@ -183,10 +173,8 @@
   <button class="k" id="recCopy">Copy</button>
   <button class="k" id="recLoad">Load into text</button>
 </div>
-<small>Records the commands you tap, the gaps between them as <code>sleep</code>. A long
-pause bakes in as a long wait (cheap to replay, but usually not wanted) — the Pauses
-option caps or normalises those. Save writes it to the Pico as a macro
-(<code>macro run &lt;name&gt;</code>). The text is editable before you save.</small>
+<small>Records the commands you tap, with the pauses between them as <code>sleep</code>.
+Save writes it to the Pico as a macro (run it with <code>macro run &lt;name&gt;</code>).</small>
 
 <div id="log">enter IP + token, tap the dot to test</div>
 
@@ -219,11 +207,7 @@ function recTap(cmd){
 
   const now=performance.now();
   if(recBody.length){                       // no leading sleep before the first command
-    const mode=$('#recGap').value;
-    let ms;
-    if(mode==='real')      ms=Math.round((now-recLast)/10)*10;
-    else if(mode.indexOf('fixed')===0) ms=+mode.slice(5);   // ignore real timing
-    else                   ms=Math.min(+mode,Math.round((now-recLast)/10)*10); // cap
+    const ms=Math.max(0,Math.round((now-recLast)/10)*10);
     if(ms>0)recBody.push('sleep '+ms);
   }
   recBody.push(cmd);
