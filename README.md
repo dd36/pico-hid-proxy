@@ -253,6 +253,20 @@ firmware/        Built UF2 firmware output
 input_monitor/   Windows tool to detect real vs emulated input
 ```
 
+## Control page (host/control.html)
+
+`host/control.html` is a standalone button pad — open it in any browser on the same
+network, enter the Pico's IP and token once, and tap Gamepad / Keyboard / Mouse
+controls instead of typing commands. It needs no firmware and no server: it POSTs
+the same `/api` commands fire-and-forget (you watch the screen, not responses), so
+it works against the device as-is.
+
+Covers everything discrete: all gamepad buttons and the d-pad, `key type` plus
+WASD/arrow/modifier keys (movement keys hold while pressed), and mouse click, scroll
+and nudge. Analog sticks and continuous mouse-look are intentionally left out — one
+HTTP request per motion update is too slow over the current server; those want a
+WebSocket transport first.
+
 ## Building Firmware
 
 The device code is frozen into a custom MicroPython firmware, producing a single `.uf2` file. The build runs in Docker. No local toolchain needed.

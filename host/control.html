@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Pico HID Control</title>
+<style>
+  :root{--bg:#1a1a2e;--panel:#16213e;--edge:#2a2a4a;--fg:#e0e0e0;--dim:#8a8aa0;--accent:#0ff;--warn:#ff6b6b}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{font-family:system-ui,sans-serif;margin:0;background:var(--bg);color:var(--fg);
+       max-width:520px;margin:0 auto;padding:10px 12px 40px;user-select:none}
+  h2{color:var(--accent);margin:6px 0 2px;font-size:19px}
+  .conn{display:flex;gap:6px;margin:8px 0}
+  .conn input{flex:1;min-width:0;padding:7px;border:1px solid var(--edge);border-radius:6px;
+              background:var(--panel);color:var(--fg);font-size:13px}
+  #dot{width:12px;height:12px;border-radius:50%;background:#555;align-self:center;flex:none}
+  #dot.ok{background:#3ad29f}#dot.err{background:var(--warn)}
+  .tabs{display:flex;gap:6px;margin:10px 0}
+  .tabs button{flex:1;padding:9px;border:1px solid var(--edge);border-radius:6px;background:var(--panel);
+               color:var(--dim);font-size:14px;font-weight:600}
+  .tabs button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+  .page{display:none}.page.on{display:block}
+  button.k{border:1px solid var(--edge);border-radius:10px;background:var(--panel);color:var(--fg);
+           font-size:16px;font-weight:600;padding:0;height:52px;transition:background .05s}
+  button.k:active,button.k.press{background:var(--accent);color:var(--bg)}
+  .grid{display:grid;gap:8px;margin-top:10px}
+  .lbl{color:var(--dim);font-size:12px;margin:14px 0 4px;text-transform:uppercase;letter-spacing:.05em}
+  /* gamepad layout */
+  .pad{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+  .dpad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:6px;aspect-ratio:1}
+  .dpad .sp{visibility:hidden}
+  .face{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:6px;aspect-ratio:1}
+  .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  textarea,input.txt{width:100%;padding:9px;border:1px solid var(--edge);border-radius:6px;
+                     background:var(--panel);color:var(--fg);font-size:15px}
+  #log{margin-top:12px;font-family:monospace;font-size:12px;color:var(--dim);min-height:16px;
+       white-space:pre-wrap;word-break:break-all}
+  small{color:var(--dim);font-size:11px}
+</style>
+</head>
+<body>
+<h2>Pico HID Control</h2>
+<div class="conn">
+  <input id="ip" placeholder="192.168.x.x" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <input id="tok" type="password" placeholder="token" autocomplete="off">
+  <span id="dot" title="click to ping"></span>
+</div>
+
+<div class="tabs">
+  <button data-p="gp" class="on">Gamepad</button>
+  <button data-p="kb">Keyboard</button>
+  <button data-p="ms">Mouse</button>
+</div>
+
+<!-- GAMEPAD -->
+<div class="page on" id="gp">
+  <div class="pad">
+    <div>
+      <div class="lbl">D-pad</div>
+      <div class="dpad">
+        <span class="sp"></span><button class="k" data-dpad="up">▲</button><span class="sp"></span>
+        <button class="k" data-dpad="left">◀</button><button class="k" data-dpad="neutral">•</button><button class="k" data-dpad="right">▶</button>
+        <span class="sp"></span><button class="k" data-dpad="down">▼</button><span class="sp"></span>
+      </div>
+    </div>
+    <div>
+      <div class="lbl">Buttons</div>
+      <div class="face">
+        <span class="sp"></span><button class="k" data-tap="x">X</button><span class="sp"></span>
+        <button class="k" data-tap="y">Y</button><span class="sp"></span><button class="k" data-tap="a">A</button>
+        <span class="sp"></span><button class="k" data-tap="b">B</button><span class="sp"></span>
+      </div>
+    </div>
+  </div>
+  <div class="row4">
+    <button class="k" data-tap="l">L</button><button class="k" data-tap="r">R</button>
+    <button class="k" data-tap="zl">ZL</button><button class="k" data-tap="zr">ZR</button>
+  </div>
+  <div class="row4">
+    <button class="k" data-tap="minus">−</button><button class="k" data-tap="plus">+</button>
+    <button class="k" data-tap="home">⌂</button><button class="k" data-tap="capture">◉</button>
+  </div>
+  <div class="row2">
+    <button class="k" data-tap="l+r">L + R</button>
+    <button class="k" data-hold="home">Hold ⌂ (wake)</button>
+  </div>
+  <small>Tap = 130 ms press. "Hold ⌂" holds ~800 ms to wake the console.</small>
+</div>
+
+<!-- KEYBOARD -->
+<div class="page" id="kb">
+  <div class="lbl">Type</div>
+  <div class="row2" style="margin-top:4px">
+    <input class="txt" id="typed" placeholder="text to send" style="grid-column:span 1">
+    <button class="k" id="typeBtn">Type</button>
+  </div>
+  <div class="lbl">Movement (hold)</div>
+  <div class="face" style="max-width:180px">
+    <span class="sp"></span><button class="k" data-khold="w">W</button><span class="sp"></span>
+    <button class="k" data-khold="a">A</button><button class="k" data-khold="s">S</button><button class="k" data-khold="d">D</button>
+  </div>
+  <div class="lbl">Keys</div>
+  <div class="row4">
+    <button class="k" data-ktap="space">Spc</button><button class="k" data-ktap="enter">Ent</button>
+    <button class="k" data-ktap="escape">Esc</button><button class="k" data-ktap="tab">Tab</button>
+  </div>
+  <div class="row4">
+    <button class="k" data-ktap="up">▲</button><button class="k" data-ktap="down">▼</button>
+    <button class="k" data-ktap="left">◀</button><button class="k" data-ktap="right">▶</button>
+  </div>
+  <div class="row2">
+    <button class="k" data-khold="shift">Hold Shift</button>
+    <button class="k" data-cmd="key release">Release all</button>
+  </div>
+  <small>Movement buttons hold while pressed (press-and-hold), like real WASD.</small>
+</div>
+
+<!-- MOUSE -->
+<div class="page" id="ms">
+  <div class="lbl">Move (nudge)</div>
+  <div class="face" style="max-width:180px">
+    <span class="sp"></span><button class="k" data-move="0,-1">▲</button><span class="sp"></span>
+    <button class="k" data-move="-1,0">◀</button><span class="sp"></span><button class="k" data-move="1,0">▶</button>
+    <span class="sp"></span><button class="k" data-move="0,1">▼</button><span class="sp"></span>
+  </div>
+  <div class="lbl">Step size</div>
+  <div class="row4">
+    <button class="k step" data-step="20">20</button><button class="k step on" data-step="60">60</button>
+    <button class="k step" data-step="150">150</button><button class="k step" data-step="400">400</button>
+  </div>
+  <div class="lbl">Buttons</div>
+  <div class="row3">
+    <button class="k" data-click="left">Left</button><button class="k" data-click="middle">Mid</button>
+    <button class="k" data-click="right">Right</button>
+  </div>
+  <div class="lbl">Scroll</div>
+  <div class="row2">
+    <button class="k" data-scroll="3">Up</button><button class="k" data-scroll="-3">Down</button>
+  </div>
+</div>
+
+<div id="log">enter IP + token, tap the dot to test</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const ip=$('#ip'), tok=$('#tok'), dot=$('#dot'), log=$('#log');
+// persist connection
+try{ip.value=localStorage.getItem('pico_ip')||'';tok.value=localStorage.getItem('pico_tok')||'';}catch(e){}
+ip.oninput=()=>{try{localStorage.setItem('pico_ip',ip.value)}catch(e){}};
+tok.oninput=()=>{try{localStorage.setItem('pico_tok',tok.value)}catch(e){}};
+
+// fire-and-forget: no-cors + text/plain avoids the CORS preflight the device
+// can't answer. We watch the screen, not the response.
+function send(cmd){
+  log.textContent=cmd;
+  fetch('http://'+ip.value+'/api',{method:'POST',mode:'no-cors',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({cmd:cmd,delay:0,token:tok.value})}).catch(()=>{});
+}
+// ping uses a normal fetch to /health (no auth, CORS-safe via opaque) for the dot
+async function ping(){
+  dot.className='';
+  try{await fetch('http://'+ip.value+'/health',{mode:'no-cors'});dot.className='ok';
+      log.textContent='sent ping to '+ip.value;}
+  catch(e){dot.className='err';log.textContent='no response';}
+}
+dot.onclick=ping;
+
+// tabs
+$$('.tabs button').forEach(b=>b.onclick=()=>{
+  $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  $$('.page').forEach(p=>p.classList.toggle('on',p.id===b.dataset.p));
+});
+
+// --- gamepad ---
+$$('[data-tap]').forEach(b=>b.onclick=()=>send('pad tap '+b.dataset.tap));
+$$('[data-dpad]').forEach(b=>b.onclick=()=>send(
+  b.dataset.dpad==='neutral'?'pad dpad neutral':'pad dpad '+b.dataset.dpad));
+$$('[data-hold]').forEach(b=>b.onclick=()=>send('pad tap '+b.dataset.hold+' 800'));
+
+// --- keyboard ---
+$('#typeBtn').onclick=()=>{if($('#typed').value)send('key type '+$('#typed').value);};
+$$('[data-ktap]').forEach(b=>b.onclick=()=>send('key tap '+b.dataset.ktap));
+// press-and-hold for movement keys
+function holdBind(el, downCmd, upCmd){
+  const down=e=>{e.preventDefault();el.classList.add('press');send(downCmd);};
+  const up=e=>{e.preventDefault();el.classList.remove('press');send(upCmd);};
+  el.addEventListener('pointerdown',down);
+  el.addEventListener('pointerup',up);
+  el.addEventListener('pointerleave',e=>{if(el.classList.contains('press'))up(e);});
+  el.addEventListener('pointercancel',up);
+}
+$$('[data-khold]').forEach(b=>holdBind(b,'key down '+b.dataset.khold,'key up '+b.dataset.khold));
+$$('[data-cmd]').forEach(b=>b.onclick=()=>send(b.dataset.cmd));
+
+// --- mouse ---
+let step=60;
+$$('.step').forEach(b=>b.onclick=()=>{step=+b.dataset.step;$$('.step').forEach(x=>x.classList.toggle('on',x===b));});
+$$('[data-move]').forEach(b=>b.onclick=()=>{
+  const [sx,sy]=b.dataset.move.split(',').map(Number);
+  send('mouse move '+(sx*step)+' '+(sy*step));
+});
+$$('[data-click]').forEach(b=>b.onclick=()=>send('mouse click '+b.dataset.click));
+$$('[data-scroll]').forEach(b=>b.onclick=()=>send('mouse scroll '+b.dataset.scroll));
+</script>
+</body>
+</html>
