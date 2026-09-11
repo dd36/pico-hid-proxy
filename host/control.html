@@ -70,7 +70,6 @@
 
 <div class="tabs">
   <button data-p="gp" class="on">Gamepad</button>
-  <button data-p="st">Sticks</button>
   <button data-p="kb">Keyboard</button>
   <button data-p="ms">Mouse</button>
 </div>
@@ -108,24 +107,17 @@
     <button class="k" data-hold="home">Hold ⌂ (wake)</button>
   </div>
   <small>Tap = 130 ms press. "Hold ⌂" holds ~800 ms to wake the console.</small>
-</div>
-
-<!-- STICKS -->
-<div class="page" id="st">
+  <div class="lbl">Sticks — drag to push, release to centre</div>
   <div class="sticks">
     <div>
-      <div class="lbl">Left stick — move</div>
       <div class="stick" data-side="left"><div class="knob"></div></div>
-      <div class="sval" id="svleft">0, 0</div>
+      <div class="sval" id="svleft">L · 0, 0</div>
     </div>
     <div>
-      <div class="lbl">Right stick — camera</div>
       <div class="stick" data-side="right"><div class="knob"></div></div>
-      <div class="sval" id="svright">0, 0</div>
+      <div class="sval" id="svright">R · 0, 0</div>
     </div>
   </div>
-  <small>Drag a stick to push it; release to recenter. It only sends while you move —
-  the device holds the deflection between updates, so holding steady is free.</small>
 </div>
 
 <!-- KEYBOARD -->
@@ -334,7 +326,8 @@ $$('[data-scroll]').forEach(b=>b.onclick=()=>send('mouse scroll '+b.dataset.scro
 // Only send on meaningful change; the device streams the last value, so a held
 // stick needs no traffic. Throttle active dragging to ~10/s.
 function makeStick(el){
-  const side=el.dataset.side, knob=el.querySelector('.knob'), sval=$('#sv'+side);
+  const side=el.dataset.side, tag=side==='left'?'L':'R';
+  const knob=el.querySelector('.knob'), sval=$('#sv'+side);
   let active=false,last=0,lx=0,ly=0;
   function out(px,py){                                  // px,py: pixels from centre
     const R=el.clientWidth/2;
@@ -343,13 +336,13 @@ function makeStick(el){
     const x=Math.round(px/R*100), y=Math.round(-py/R*100);   // invert Y: up = +
     const now=performance.now();
     if(now-last<100 && Math.abs(x-lx)<8 && Math.abs(y-ly)<8) return;
-    last=now;lx=x;ly=y;sval.textContent=x+', '+y;
+    last=now;lx=x;ly=y;sval.textContent=tag+' · '+x+', '+y;
     send('pad stick '+side+' '+x+' '+y);
   }
   function at(e){const r=el.getBoundingClientRect();
     out(e.clientX-r.left-r.width/2, e.clientY-r.top-r.height/2);}
   function centre(){knob.style.transform='translate(-50%,-50%)';lx=ly=0;last=0;
-    sval.textContent='0, 0';send('pad stick '+side+' 0 0');}
+    sval.textContent=tag+' · 0, 0';send('pad stick '+side+' 0 0');}
   el.addEventListener('pointerdown',e=>{active=true;el.classList.add('hold');
     try{el.setPointerCapture(e.pointerId)}catch(_){}at(e);});
   el.addEventListener('pointermove',e=>{if(active)at(e);});
