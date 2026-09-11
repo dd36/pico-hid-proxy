@@ -183,7 +183,10 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const ip=$('#ip'), tok=$('#tok'), dot=$('#dot'), log=$('#log');
 // persist connection
 try{ip.value=localStorage.getItem('pico_ip')||'';tok.value=localStorage.getItem('pico_tok')||'';}catch(e){}
-ip.oninput=()=>{try{localStorage.setItem('pico_ip',ip.value)}catch(e){}};
+if(ip.value)setTimeout(ping,300);
+let pingTimer=0;
+function schedulerPing(){clearTimeout(pingTimer);pingTimer=setTimeout(ping,500);}
+ip.oninput=()=>{try{localStorage.setItem('pico_ip',ip.value)}catch(e){};schedulerPing();};
 tok.oninput=()=>{try{localStorage.setItem('pico_tok',tok.value)}catch(e){}};
 
 // fire-and-forget: no-cors + text/plain avoids the CORS preflight the device
@@ -233,10 +236,16 @@ $('#recSave').onclick=()=>{
 };
 // ping uses a normal fetch to /health (no auth, CORS-safe via opaque) for the dot
 async function ping(){
-  dot.className='';
-  try{await fetch('http://'+ip.value+'/health',{mode:'no-cors'});dot.className='ok';
-      log.textContent='sent ping to '+ip.value;}
-  catch(e){dot.className='err';log.textContent='no response';}
+  if(!ip.value){dot.className='';log.textContent='';return;}
+  dot.className='';log.textContent='testing '+ip.value+'…';
+  try{
+    await fetch('http://'+ip.value+'/health',{mode:'no-cors'});
+    dot.className='ok';
+    log.textContent='reachable at '+ip.value+' (token is not checked here)';
+  }catch(e){
+    dot.className='err';
+    log.textContent='no response from '+ip.value;
+  }
 }
 dot.onclick=ping;
 
