@@ -34,6 +34,14 @@
   .wide{grid-column:span 2}
   button.kk.lock{background:var(--accent);color:var(--bg);border-color:var(--accent)}
   button.step.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+  .sticks{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;text-align:center}
+  .stick{position:relative;width:100%;max-width:160px;aspect-ratio:1;border-radius:50%;
+         background:var(--panel);border:1px solid var(--edge);margin:6px auto 0;touch-action:none;
+         box-shadow:inset 0 0 0 1px #0d1b33}
+  .knob{position:absolute;left:50%;top:50%;width:38%;height:38%;border-radius:50%;
+        background:var(--accent);transform:translate(-50%,-50%);pointer-events:none;transition:transform .04s}
+  .stick.hold .knob{transition:none}
+  .sval{font-family:monospace;font-size:12px;color:var(--dim);margin-top:6px}
   button.k:active,button.k.press{background:var(--accent);color:var(--bg)}
   .grid{display:grid;gap:8px;margin-top:10px}
   .lbl{color:var(--dim);font-size:12px;margin:14px 0 4px;text-transform:uppercase;letter-spacing:.05em}
@@ -62,6 +70,7 @@
 
 <div class="tabs">
   <button data-p="gp" class="on">Gamepad</button>
+  <button data-p="st">Sticks</button>
   <button data-p="kb">Keyboard</button>
   <button data-p="ms">Mouse</button>
 </div>
@@ -99,6 +108,24 @@
     <button class="k" data-hold="home">Hold ⌂ (wake)</button>
   </div>
   <small>Tap = 130 ms press. "Hold ⌂" holds ~800 ms to wake the console.</small>
+</div>
+
+<!-- STICKS -->
+<div class="page" id="st">
+  <div class="sticks">
+    <div>
+      <div class="lbl">Left stick — move</div>
+      <div class="stick" data-side="left"><div class="knob"></div></div>
+      <div class="sval" id="svleft">0, 0</div>
+    </div>
+    <div>
+      <div class="lbl">Right stick — camera</div>
+      <div class="stick" data-side="right"><div class="knob"></div></div>
+      <div class="sval" id="svright">0, 0</div>
+    </div>
+  </div>
+  <small>Drag a stick to push it; release to recenter. It only sends while you move —
+  the device holds the deflection between updates, so holding steady is free.</small>
 </div>
 
 <!-- KEYBOARD -->
@@ -302,6 +329,36 @@ $$('[data-move]').forEach(b=>b.onclick=()=>{
 });
 $$('[data-click]').forEach(b=>b.onclick=()=>send('mouse click '+b.dataset.click));
 $$('[data-scroll]').forEach(b=>b.onclick=()=>send('mouse scroll '+b.dataset.scroll));
+
+// --- analog sticks ---
+// Only send on meaningful change; the device streams the last value, so a held
+// stick needs no traffic. Throttle active dragging to ~10/s.
+function makeStick(el){
+  const side=el.dataset.side, knob=el.querySelector('.knob'), sval=$('#sv'+side);
+  let active=false,last=0,lx=0,ly=0;
+  function out(px,py){                                  // px,py: pixels from centre
+    const R=el.clientWidth/2;
+    let d=Math.hypot(px,py); if(d>R){px=px/d*R;py=py/d*R;}
+    knob.style.transform=`translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`;
+    const x=Math.round(px/R*100), y=Math.round(-py/R*100);   // invert Y: up = +
+    const now=performance.now();
+    if(now-last<100 && Math.abs(x-lx)<8 && Math.abs(y-ly)<8) return;
+    last=now;lx=x;ly=y;sval.textContent=x+', '+y;
+    send('pad stick '+side+' '+x+' '+y);
+  }
+  function at(e){const r=el.getBoundingClientRect();
+    out(e.clientX-r.left-r.width/2, e.clientY-r.top-r.height/2);}
+  function centre(){knob.style.transform='translate(-50%,-50%)';lx=ly=0;last=0;
+    sval.textContent='0, 0';send('pad stick '+side+' 0 0');}
+  el.addEventListener('pointerdown',e=>{active=true;el.classList.add('hold');
+    try{el.setPointerCapture(e.pointerId)}catch(_){}at(e);});
+  el.addEventListener('pointermove',e=>{if(active)at(e);});
+  const up=()=>{if(active){active=false;el.classList.remove('hold');centre();}};
+  el.addEventListener('pointerup',up);
+  el.addEventListener('pointercancel',up);
+  el.addEventListener('lostpointercapture',up);
+}
+$$('.stick').forEach(makeStick);
 </script>
 </body>
 </html>
