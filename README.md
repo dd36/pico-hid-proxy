@@ -255,6 +255,18 @@ input_monitor/   Windows tool to detect real vs emulated input
 
 ## Control page (host/control.html)
 
+`host/control.html` is a standalone touch control pad — gamepad, full keyboard,
+mouse, and analog sticks — plus a macro recorder. The **same page is served on the
+device at `http://PICO_IP/controller`** (frozen into the firmware from this file at
+build time by `tools_gen_controller.py`, so the two never drift). Open either one:
+
+- **On-device (`/controller`)** — nothing to install; any phone, tablet or laptop on
+  the network just opens the URL. Because it is same-origin with `/api` it reads real
+  responses: the token is actually validated and errors show.
+- **Local file** — open `control.html` from disk. It POSTs fire-and-forget (no-cors),
+  so it works against the device with no server but cannot read responses.
+
+
 `host/control.html` is a standalone button pad — open it in any browser on the same
 network, enter the Pico's IP and token once, and tap Gamepad / Keyboard / Mouse
 controls instead of typing commands. It needs no firmware and no server: it POSTs

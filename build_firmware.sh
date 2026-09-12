@@ -26,6 +26,10 @@ VERSIONED="$OUT_DIR/pico-hid-proxy-$BOARD_SLUG-$VERSION.uf2"
 # Stable name kept for the README and .github/workflows/release.yml.
 STABLE="$OUT_DIR/pico_hid_firmware.uf2"
 
+# Freeze the current control page into a device module so /controller serves it.
+# Regenerated every build so it can never drift from host/control.html.
+python3 "$PROJECT_DIR/tools_gen_controller.py"
+
 echo "=== Building MicroPython firmware (Docker) ==="
 echo "Board:   $BOARD"
 echo "Version: $VERSION"

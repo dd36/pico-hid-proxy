@@ -203,23 +203,36 @@ Save writes it to the Pico as a macro (run it with <code>macro run &lt;name&gt;<
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+// SERVED = this page came from the Pico itself (same-origin) vs opened as a
+// local file. Same-origin can read API responses; a local file cannot (no-cors).
+const SERVED = location.protocol==='http:'||location.protocol==='https:';
 const ip=$('#ip'), tok=$('#tok'), dot=$('#dot'), log=$('#log');
-// persist connection
 try{ip.value=localStorage.getItem('pico_ip')||'';tok.value=localStorage.getItem('pico_tok')||'';}catch(e){}
-if(ip.value)setTimeout(ping,300);
+if(SERVED)ip.style.display='none';           // IP is implicit when served on-device
 let pingTimer=0;
 function schedulerPing(){clearTimeout(pingTimer);pingTimer=setTimeout(ping,500);}
 ip.oninput=()=>{try{localStorage.setItem('pico_ip',ip.value)}catch(e){};schedulerPing();};
-tok.oninput=()=>{try{localStorage.setItem('pico_tok',tok.value)}catch(e){}};
+tok.oninput=()=>{try{localStorage.setItem('pico_tok',tok.value)}catch(e){};if(SERVED)schedulerPing();};
+if(SERVED||ip.value)setTimeout(ping,300);
 
-// fire-and-forget: no-cors + text/plain avoids the CORS preflight the device
-// can't answer. We watch the screen, not the response.
-function send(cmd){
+// Served on-device (same-origin): normal fetch, read the real response.
+// Local file (cross-origin): no-cors + text/plain to dodge the CORS preflight
+// the device can't answer; response is opaque, so we watch the screen.
+async function send(cmd){
   log.textContent=cmd;
   recTap(cmd);
-  fetch('http://'+ip.value+'/api',{method:'POST',mode:'no-cors',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({cmd:cmd,delay:0,token:tok.value})}).catch(()=>{});
+  const url=(SERVED?'':'http://'+ip.value)+'/api';
+  const opts={method:'POST',headers:{'Content-Type':'text/plain'},
+              body:JSON.stringify({cmd:cmd,delay:0,token:tok.value})};
+  if(!SERVED)opts.mode='no-cors';
+  try{
+    const r=await fetch(url,opts);
+    if(SERVED){
+      const j=await r.json();
+      if(!j.ok)log.textContent='ERR: '+(j.error||j.result||'failed');
+      else if(j.result&&j.result!=='OK')log.textContent=j.result;
+    }
+  }catch(e){if(SERVED)log.textContent='ERR '+e.message;}
 }
 
 // --- recorder: the page already generates every command, so recording is just
@@ -257,19 +270,23 @@ $('#recSave').onclick=()=>{
   send('macro save '+n+'\n'+body);          // body follows on later lines
   log.textContent="saved macro '"+n+"' (run: macro run "+n+")";
 };
-// ping uses a normal fetch to /health (no auth, CORS-safe via opaque) for the dot
 const stxt=()=>document.querySelector('#stxt');
 async function ping(){
-  if(!ip.value){dot.className='';stxt().textContent='test';log.textContent='';return;}
-  dot.className='';stxt().textContent='…';log.textContent='testing '+ip.value+'…';
+  if(!SERVED&&!ip.value){dot.className='';stxt().textContent='test';log.textContent='';return;}
+  dot.className='';stxt().textContent='…';
   try{
-    await fetch('http://'+ip.value+'/health',{mode:'no-cors'});
-    dot.className='ok';stxt().textContent='reachable';
-    log.textContent='reachable at '+ip.value+' (token is not checked here)';
-  }catch(e){
-    dot.className='err';stxt().textContent='no response';
-    log.textContent='no response from '+ip.value;
-  }
+    if(SERVED){                               // same-origin: really validate the token
+      const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({cmd:'ping',delay:0,token:tok.value})});
+      const j=await r.json();
+      if(j.ok){dot.className='ok';stxt().textContent='connected';log.textContent='connected · token OK';}
+      else{dot.className='err';stxt().textContent='bad token';log.textContent='ERR: '+(j.error||'unauthorized');}
+    }else{
+      await fetch('http://'+ip.value+'/health',{mode:'no-cors'});
+      dot.className='ok';stxt().textContent='reachable';
+      log.textContent='reachable at '+ip.value+' (token not checked here)';
+    }
+  }catch(e){dot.className='err';stxt().textContent='no response';log.textContent='no response';}
 }
 document.querySelector('#status').onclick=ping;
 
