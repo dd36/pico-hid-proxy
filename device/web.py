@@ -48,7 +48,7 @@ button.secondary{background:#2a2a4a;color:#c8c8d8}
 button.secondary:active{background:#3a3a5a}
 #mstat,#astat{margin-top:10px;padding:6px 8px;background:#0d1117;border-radius:4px;font-family:monospace;font-size:13px;color:#7ec8e3}
 </style></head><body>
-<h2>Pico HID Proxy</h2>\n<p style="margin:2px 0 10px"><a href="/controller" style="color:#0ff">\u2192 Touch control pad</a> (gamepad, keyboard, mouse, sticks)</p>
+<h2>Pico HID Proxy</h2>\n<p style="margin:2px 0 10px"><a href="/" style="color:#0ff">\u2192 Touch control pad</a> (this is the console/setup page)</p>
 <label>Command</label>
 <input id="cmd" placeholder="e.g. key tap a, key type Hello, mouse move 10 20" autofocus>
 <label>Delay (ms)</label>
@@ -318,12 +318,18 @@ def _url_decode(s):
 
 
 def _send_response(writer, status, content_type, body):
+    # Content-Length is a BYTE count. Encode first and measure the bytes -- using
+    # len() on a str counts characters, so any non-ASCII (the control pad is full
+    # of glyph buttons) made the header short and the browser truncated the body,
+    # cutting off the trailing <script> and killing all the page's JavaScript.
+    if not isinstance(body, bytes):
+        body = body.encode()
     writer.write(
         "HTTP/1.0 {} OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n".format(
             status, content_type, len(body)
         ).encode()
     )
-    writer.write(body if isinstance(body, bytes) else body.encode())
+    writer.write(body)
 
 
 async def _handle_client(reader, writer):
@@ -357,25 +363,19 @@ async def _handle_client(reader, writer):
             await writer.drain()
             return
 
-        # GET / — serve HTML page
-        if method == "GET" and path == "/":
+        # GET pages. The touch control pad is the main UI at / (and /controller);
+        # the old command console lives at /console. All need webui enabled.
+        if method == "GET" and path in ("/", "/controller", "/console"):
             if not _webui_enabled:
                 _send_response(writer, 404, "text/plain", "not found")
                 await writer.drain()
                 return
-            _send_response(writer, 200, "text/html", _HTML)
-            await writer.drain()
-            return
-
-        # GET /controller — the full touch control pad (gamepad/kb/mouse/sticks).
-        # Served on-device, so it is same-origin with /api and can read responses.
-        if method == "GET" and path == "/controller":
-            if not _webui_enabled:
-                _send_response(writer, 404, "text/plain", "not found")
-                await writer.drain()
-                return
-            import webui_controller
-            _send_response(writer, 200, "text/html", webui_controller.HTML)
+            if path == "/console":
+                page = _HTML
+            else:
+                import webui_controller
+                page = webui_controller.HTML
+            _send_response(writer, 200, "text/html", page)
             await writer.drain()
             return
 

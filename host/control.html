@@ -64,7 +64,7 @@
 <h2>Pico HID Control</h2>
 <div class="conn">
   <input id="ip" placeholder="192.168.x.x" autocomplete="off" autocapitalize="off" spellcheck="false">
-  <input id="tok" type="password" placeholder="token" autocomplete="off">
+  <input id="tok" type="text" placeholder="token" autocomplete="off" autocapitalize="off" spellcheck="false">
   <span id="status" title="tap to re-test"><span id="dot"></span><span id="stxt">test</span></span>
 </div>
 
@@ -207,12 +207,12 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 // local file. Same-origin can read API responses; a local file cannot (no-cors).
 const SERVED = location.protocol==='http:'||location.protocol==='https:';
 const ip=$('#ip'), tok=$('#tok'), dot=$('#dot'), log=$('#log');
-try{ip.value=localStorage.getItem('pico_ip')||'';tok.value=localStorage.getItem('pico_tok')||'';}catch(e){}
+try{ip.value=localStorage.getItem('pico_ip')||'';tok.value=localStorage.getItem('hid_token')||'';}catch(e){}
 if(SERVED)ip.style.display='none';           // IP is implicit when served on-device
 let pingTimer=0;
 function schedulerPing(){clearTimeout(pingTimer);pingTimer=setTimeout(ping,500);}
 ip.oninput=()=>{try{localStorage.setItem('pico_ip',ip.value)}catch(e){};schedulerPing();};
-tok.oninput=()=>{try{localStorage.setItem('pico_tok',tok.value)}catch(e){};if(SERVED)schedulerPing();};
+tok.oninput=()=>{try{localStorage.setItem('hid_token',tok.value)}catch(e){};if(SERVED)schedulerPing();};
 if(SERVED||ip.value)setTimeout(ping,300);
 
 // Served on-device (same-origin): normal fetch, read the real response.
