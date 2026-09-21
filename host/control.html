@@ -69,6 +69,11 @@
   <a id="consoleLink" href="/console" style="display:none;align-self:center;color:var(--accent);font-size:12px;text-decoration:none;padding:0 6px" title="command console / setup">⚙ Console</a>
 </div>
 
+<div class="row2" style="margin:8px 0 0">
+  <button class="k" id="padBtn">🎮 Controller: off</button>
+  <span id="padStat" style="align-self:center;color:var(--dim);font-size:12px">connect a gamepad + press a button</span>
+</div>
+
 <div class="tabs">
   <button data-p="gp" class="on">Gamepad</button>
   <button data-p="kb">Keyboard</button>
@@ -373,6 +378,61 @@ function makeStick(el){
   el.addEventListener('lostpointercapture',up);
 }
 $$('.stick').forEach(makeStick);
+
+// --- live controller passthrough: read a gamepad and forward as pad commands ---
+// Buttons are edge-triggered (down/up), the d-pad is combined into one hat, and
+// sticks send only on meaningful change (the device streams the last value).
+const PAD_BTN={0:'b',1:'a',2:'y',3:'x',4:'l',5:'r',6:'zl',7:'zr',8:'minus',9:'plus',10:'lstick',11:'rstick',16:'home',17:'capture'};
+const DEAD=12;                         // stick deadzone (%)
+function dz(v){return Math.abs(v)<DEAD?0:v;}
+function hatOf(u,d,l,r){
+  if(u&&r)return'upright';if(u&&l)return'upleft';if(d&&r)return'downright';if(d&&l)return'downleft';
+  if(u)return'up';if(d)return'down';if(l)return'left';if(r)return'right';return'neutral';
+}
+let padOn=false,padIdx=-1,padRAF=0,pBtn={},pHat='neutral',pLX=0,pLY=0,pRX=0,pRY=0,pStickT=0;
+const padBtn=$('#padBtn'),padStat=$('#padStat');
+function findPad(){
+  const gs=navigator.getGamepads?navigator.getGamepads():[];
+  for(let i=0;i<gs.length;i++)if(gs[i])return i;
+  return -1;
+}
+function pollPad(){
+  const gp=(navigator.getGamepads?navigator.getGamepads():[])[padIdx];
+  if(gp){
+    const b=gp.buttons;
+    for(const i in PAD_BTN){
+      const pr=b[i]&&b[i].pressed;
+      if(pr&&!pBtn[i])send('pad down '+PAD_BTN[i]);
+      else if(!pr&&pBtn[i])send('pad up '+PAD_BTN[i]);
+      pBtn[i]=pr;
+    }
+    const h=hatOf(b[12]&&b[12].pressed,b[13]&&b[13].pressed,b[14]&&b[14].pressed,b[15]&&b[15].pressed);
+    if(h!==pHat){send(h==='neutral'?'pad dpad neutral':'pad dpad '+h+' 0');pHat=h;}
+    const now=performance.now();
+    if(now-pStickT>=60){                // throttle stick traffic
+      const lx=dz(Math.round(gp.axes[0]*100)),ly=dz(Math.round(-gp.axes[1]*100));
+      if(Math.abs(lx-pLX)>=5||Math.abs(ly-pLY)>=5){send('pad stick left '+lx+' '+ly);pLX=lx;pLY=ly;pStickT=now;}
+      const rx=dz(Math.round(gp.axes[2]*100)),ry=dz(Math.round(-gp.axes[3]*100));
+      if(Math.abs(rx-pRX)>=5||Math.abs(ry-pRY)>=5){send('pad stick right '+rx+' '+ry);pRX=rx;pRY=ry;pStickT=now;}
+    }
+    padStat.textContent=(gp.id||'gamepad').slice(0,28)+' · live';
+  }else{
+    padIdx=findPad();
+    padStat.textContent=padIdx>=0?'gamepad found — starting…':'connect a gamepad + press a button';
+  }
+  if(padOn)padRAF=requestAnimationFrame(pollPad);
+}
+function padRelease(){                  // clear everything on stop
+  send('pad release');pBtn={};pHat='neutral';pLX=pLY=pRX=pRY=0;
+}
+padBtn.onclick=()=>{
+  padOn=!padOn;
+  padBtn.textContent='🎮 Controller: '+(padOn?'ON':'off');
+  padBtn.classList.toggle('lock',padOn);
+  if(padOn){padIdx=findPad();pBtn={};pHat='neutral';padRAF=requestAnimationFrame(pollPad);}
+  else{cancelAnimationFrame(padRAF);padRelease();padStat.textContent='stopped';}
+};
+window.addEventListener('gamepadconnected',e=>{if(padOn&&padIdx<0)padIdx=e.gamepad.index;});
 </script>
 </body>
 </html>
