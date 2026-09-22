@@ -70,7 +70,7 @@
 </div>
 
 <div class="row2" style="margin:8px 0 0">
-  <button class="k" id="padBtn">🎮 Controller: off</button>
+  <button class="k" id="padBtn">Controller: off</button>
   <span id="padStat" style="align-self:center;color:var(--dim);font-size:12px">connect a gamepad + press a button</span>
 </div>
 
@@ -443,7 +443,7 @@ function padRelease(){                  // clear everything on stop
 }
 padBtn.onclick=()=>{
   padOn=!padOn;
-  padBtn.textContent='🎮 Controller: '+(padOn?'ON':'off');
+  padBtn.textContent='Controller: '+(padOn?'ON':'off');
   padBtn.classList.toggle('lock',padOn);
   if(padOn){padIdx=findPad();pBtn={};pHat='neutral';padRAF=requestAnimationFrame(pollPad);}
   else{cancelAnimationFrame(padRAF);padRelease();padStat.textContent='stopped';}

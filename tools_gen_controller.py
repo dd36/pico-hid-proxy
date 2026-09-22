@@ -1,6 +1,10 @@
 import json, os
 here = os.path.dirname(os.path.abspath(__file__))
 html = open(os.path.join(here, "host", "control.html")).read()
+bad = sorted({ch for ch in html if ord(ch) > 0xFFFF})
+if bad:
+    raise SystemExit("control.html has astral-plane chars the MicroPython freeze "
+                     "cannot handle (surrogate pairs): " + " ".join(repr(c) for c in bad))
 out = os.path.join(here, "device", "webui_controller.py")
 with open(out, "w") as f:
     f.write("# GENERATED from host/control.html by tools_gen_controller.py — do not edit.\n")
