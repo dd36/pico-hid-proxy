@@ -404,16 +404,16 @@ async def _ws_serve(reader, writer, ws_key):
                 writer.write(_ws_frame(0xA, payload))
                 await writer.drain()
                 continue
-            if opcode in (0x1, 0x2):  # text / binary command(s)
+            if opcode in (0x1, 0x2):  # one command per frame
                 try:
                     text = payload.decode()
                 except Exception:
                     continue
-                # allow batching multiple commands separated by newlines
-                for cmd in text.split("\n"):
-                    cmd = cmd.strip()
-                    if cmd and _dispatch_fn:
-                        _dispatch_fn(cmd)  # fire-and-forget for latency
+                # The whole frame is ONE command -- do NOT split on newlines, or a
+                # multi-line "macro save <name>\n<body>" gets torn into separate
+                # commands and the body runs as live input instead of being saved.
+                if text and _dispatch_fn:
+                    _dispatch_fn(text)  # fire-and-forget for latency
     except Exception:
         pass
     finally:

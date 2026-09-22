@@ -245,7 +245,10 @@ function openWS(){
 async function send(cmd){
   log.textContent=cmd;
   recTap(cmd);
-  if(wsOK&&ws&&ws.readyState===1){try{ws.send(cmd);return;}catch(e){wsOK=false;}}
+  // Multi-line (macro save) and macro-management go over HTTP: they must stay
+  // atomic and we want the real response. Live control uses the fast WS path.
+  const viaHttp = cmd.indexOf('\n')>=0 || cmd.indexOf('macro ')===0;
+  if(!viaHttp&&wsOK&&ws&&ws.readyState===1){try{ws.send(cmd);return;}catch(e){wsOK=false;}}
   const url=(SERVED?'':'http://'+ip.value)+'/api';
   const opts={method:'POST',headers:{'Content-Type':'text/plain'},
               body:JSON.stringify({cmd:cmd,delay:0,token:tok.value})};
