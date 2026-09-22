@@ -112,6 +112,13 @@ macro player  ─┘
 JavaScript must be doubled in the source: JS `split('\n')` must be written `\\n`
 in `web.py`. Verify by extracting the constant with `ast` rather than importing:
 
+**No astral-plane characters (emoji) in frozen strings.** A character above U+FFFF
+is a surrogate pair, and MicroPython's freeze tool cannot serialize surrogate code
+points -- the build dies with `UnicodeDecodeError: invalid continuation byte`, which
+looks like anything but the real cause. `tools_gen_controller.py` (which freezes
+`host/control.html` into `webui_controller.py`) rejects them up front. BMP symbols
+(arrows, gear U+2699, etc.) are fine; emoji are not.
+
 ```python
 import ast; t = ast.parse(open("device/web.py").read())
 ```
