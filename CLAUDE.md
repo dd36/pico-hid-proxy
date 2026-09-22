@@ -90,8 +90,13 @@ macro player  ─┘
   once. One device serves both consoles. It exports `keyboard`, `mouse`,
   `abs_mouse` and `gamepad` for `main.py`. Nothing else may touch USB, and this
   runs before anything can recover the device — keep it simple.
-- **`web.py`** is a hand-rolled asyncio HTTP/1.0 server serving exactly three
-  routes (`GET /`, `GET /health`, `POST /api`). The entire web UI is a single
+- **`web.py`** is a hand-rolled asyncio HTTP/1.0 server. Routes: `GET /` and
+  `/controller` (touch pad), `/console` (command page), `GET /health`, `POST /api`,
+  and `GET /ws` — a WebSocket upgrade for a persistent low-latency control channel
+  (token in the query string; frames are the same command strings `/api` takes, so
+  parser/dispatch/recorder are unchanged). The handshake (SHA-1+base64) uses the
+  frozen `hashlib`/`binascii`; `_ws_serve` unmasks client frames and fire-and-forget
+  dispatches each. It is what makes real-time gamepad passthrough usable over WiFi. The entire web UI is a single
   frozen `_HTML` string in this file. It calls back into `main._dispatch_from_web`;
   it never imports `main` (which would re-run `main()`).
 - **`macros.py`** stores macros as one text file per macro under `/macros.d/` on

@@ -332,6 +332,98 @@ def _send_response(writer, status, content_type, body):
     writer.write(body)
 
 
+_WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+async def _read_exactly(reader, n):
+    """Read exactly n bytes or raise on EOF. MicroPython read() may return short."""
+    buf = b""
+    while len(buf) < n:
+        chunk = await reader.read(n - len(buf))
+        if not chunk:
+            raise OSError("closed")
+        buf += chunk
+    return buf
+
+
+def _ws_frame(opcode, data=b""):
+    """Server->client frame (never masked)."""
+    ln = len(data)
+    if ln < 126:
+        hdr = bytes([0x80 | opcode, ln])
+    elif ln < 65536:
+        hdr = bytes([0x80 | opcode, 126, (ln >> 8) & 0xFF, ln & 0xFF])
+    else:
+        hdr = bytes([0x80 | opcode, 127]) + ln.to_bytes(8, "big")
+    return hdr + data
+
+
+async def _ws_serve(reader, writer, ws_key):
+    """Complete the handshake, then dispatch each text frame as a command.
+
+    One persistent connection replaces a TCP setup/teardown per command, which
+    is what makes real-time stick control usable over WiFi. Frames are just the
+    same command strings the HTTP /api takes, so the parser, dispatch and the
+    browser recorder are all unchanged.
+    """
+    import hashlib
+    import binascii
+
+    accept = binascii.b2a_base64(
+        hashlib.sha1((ws_key + _WS_GUID).encode()).digest()
+    ).strip().decode()
+    writer.write(
+        ("HTTP/1.1 101 Switching Protocols\r\n"
+         "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+         "Sec-WebSocket-Accept: {}\r\n\r\n").format(accept).encode()
+    )
+    await writer.drain()
+
+    try:
+        while True:
+            hdr = await _read_exactly(reader, 2)
+            opcode = hdr[0] & 0x0F
+            masked = hdr[1] & 0x80
+            ln = hdr[1] & 0x7F
+            if ln == 126:
+                ext = await _read_exactly(reader, 2)
+                ln = (ext[0] << 8) | ext[1]
+            elif ln == 127:
+                ext = await _read_exactly(reader, 8)
+                ln = 0
+                for b in ext:
+                    ln = (ln << 8) | b
+            mask = await _read_exactly(reader, 4) if masked else b"\x00\x00\x00\x00"
+            payload = await _read_exactly(reader, ln) if ln else b""
+            if masked and ln:
+                payload = bytes(payload[i] ^ mask[i & 3] for i in range(ln))
+
+            if opcode == 0x8:  # close
+                break
+            if opcode == 0x9:  # ping -> pong
+                writer.write(_ws_frame(0xA, payload))
+                await writer.drain()
+                continue
+            if opcode in (0x1, 0x2):  # text / binary command(s)
+                try:
+                    text = payload.decode()
+                except Exception:
+                    continue
+                # allow batching multiple commands separated by newlines
+                for cmd in text.split("\n"):
+                    cmd = cmd.strip()
+                    if cmd and _dispatch_fn:
+                        _dispatch_fn(cmd)  # fire-and-forget for latency
+    except Exception:
+        pass
+    finally:
+        try:
+            writer.write(_ws_frame(0x8))
+            await writer.drain()
+        except Exception:
+            pass
+
+
 async def _handle_client(reader, writer):
     try:
         request_line = await asyncio.wait_for(reader.readline(), timeout=5)
@@ -346,6 +438,8 @@ async def _handle_client(reader, writer):
 
         # Read headers
         content_length = 0
+        ws_key = None
+        ws_upgrade = False
         while True:
             line = await asyncio.wait_for(reader.readline(), timeout=5)
             if not line or line == b"\r\n" or line == b"\n":
@@ -356,6 +450,29 @@ async def _handle_client(reader, writer):
                     content_length = int(decoded.split(":")[1].strip())
                 except ValueError:
                     pass
+            elif decoded.startswith("upgrade:") and "websocket" in decoded:
+                ws_upgrade = True
+            elif decoded.startswith("sec-websocket-key:"):
+                ws_key = line.decode().split(":", 1)[1].strip()
+
+        # WS /ws — persistent low-latency control channel (token in query string)
+        if method == "GET" and ws_upgrade and ws_key and path.split("?")[0] == "/ws":
+            if not _api_enabled:
+                _send_response(writer, 404, "text/plain", "not found")
+                await writer.drain()
+                return
+            token = ""
+            if "?" in path:
+                for kv in path.split("?", 1)[1].split("&"):
+                    if kv.startswith("token="):
+                        token = _url_decode(kv[6:])
+            if token != _web_password:
+                _send_response(writer, 403, "application/json",
+                               '{"ok":false,"error":"unauthorized"}')
+                await writer.drain()
+                return
+            await _ws_serve(reader, writer, ws_key)
+            return
 
         # GET /health — lightweight health check (no auth required)
         if method == "GET" and path == "/health":

@@ -220,16 +220,32 @@ if(SERVED)ip.style.display='none';           // IP is implicit when served on-de
 if(SERVED)$('#consoleLink').style.display='inline';
 let pingTimer=0;
 function schedulerPing(){clearTimeout(pingTimer);pingTimer=setTimeout(ping,500);}
-ip.oninput=()=>{try{localStorage.setItem('pico_ip',ip.value)}catch(e){};schedulerPing();};
-tok.oninput=()=>{try{localStorage.setItem('hid_token',tok.value)}catch(e){};if(SERVED)schedulerPing();};
-if(SERVED||ip.value)setTimeout(ping,300);
+ip.oninput=()=>{try{localStorage.setItem('pico_ip',ip.value)}catch(e){};schedulerPing();clearTimeout(window._wsT);window._wsT=setTimeout(openWS,700);};
+tok.oninput=()=>{try{localStorage.setItem('hid_token',tok.value)}catch(e){};if(SERVED)schedulerPing();clearTimeout(window._wsT);window._wsT=setTimeout(openWS,700);};
+if(SERVED||ip.value){setTimeout(ping,300);setTimeout(openWS,400);}
 
-// Served on-device (same-origin): normal fetch, read the real response.
-// Local file (cross-origin): no-cors + text/plain to dodge the CORS preflight
-// the device can't answer; response is opaque, so we watch the screen.
+// A persistent WebSocket is the low-latency path (one connection vs a TCP
+// setup/teardown per command) -- essential for real-time sticks. If it is up we
+// send over it; otherwise we fall back to the HTTP path (served: real response;
+// local file: no-cors fire-and-forget).
+let ws=null, wsOK=false;
+function wsHost(){return SERVED?location.host:ip.value;}
+function openWS(){
+  if(!tok.value)return;
+  if(!SERVED&&!ip.value)return;
+  try{if(ws){ws.onclose=null;ws.close();}}catch(e){}
+  const proto=(location.protocol==='https:')?'wss:':'ws:';
+  try{
+    ws=new WebSocket(proto+'//'+wsHost()+'/ws?token='+encodeURIComponent(tok.value));
+    ws.onopen=()=>{wsOK=true;dot.className='ok';stxt().textContent='live (ws)';log.textContent='websocket connected';};
+    ws.onclose=()=>{wsOK=false;ws=null;setTimeout(openWS,2500);};   // retry / degrade to HTTP
+    ws.onerror=()=>{wsOK=false;};
+  }catch(e){ws=null;wsOK=false;}
+}
 async function send(cmd){
   log.textContent=cmd;
   recTap(cmd);
+  if(wsOK&&ws&&ws.readyState===1){try{ws.send(cmd);return;}catch(e){wsOK=false;}}
   const url=(SERVED?'':'http://'+ip.value)+'/api';
   const opts={method:'POST',headers:{'Content-Type':'text/plain'},
               body:JSON.stringify({cmd:cmd,delay:0,token:tok.value})};
