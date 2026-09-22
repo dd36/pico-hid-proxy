@@ -10,6 +10,8 @@
   html,body{height:100%}
   body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);
        height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  body.drag{cursor:row-resize;user-select:none}
+  body.drag iframe{pointer-events:none}          /* let the splitter get the mouse */
   header{display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--panel);
          border-bottom:1px solid var(--edge);flex:none;flex-wrap:wrap}
   header b{color:var(--accent);font-size:14px}
@@ -19,15 +21,18 @@
   header small{color:var(--dim);font-size:11px}
   main{flex:1;display:flex;min-height:0}
   .left{flex:1;min-width:0;display:flex;flex-direction:column}
-  .video{flex:none;width:100%;aspect-ratio:16/9;background:#000;position:relative;overflow:hidden}
-  .console{flex:1;min-height:0;border-top:1px solid var(--edge)}
+  .video{flex:none;width:100%;height:38vh;background:#000;position:relative;overflow:hidden}
+  .vhandle{flex:none;height:8px;background:var(--edge);cursor:row-resize;
+           border-top:1px solid #000;border-bottom:1px solid #000}
+  .vhandle:hover{background:var(--accent)}
+  .console{flex:1;min-height:0}
   .right{width:540px;max-width:48vw;flex:none;border-left:1px solid var(--edge);background:var(--panel)}
-  iframe{width:100%;height:100%;border:0;display:block;position:absolute;inset:0}
-  .console iframe,.right iframe{position:static}
+  iframe{width:100%;height:100%;border:0;display:block}
+  .video iframe{position:absolute;inset:0}
   @media(max-width:760px){
     main{flex-direction:column}
-    .right{width:100%;max-width:none;height:58%;border-left:0;border-top:1px solid var(--edge)}
-    .left{height:42%}
+    .right{width:100%;max-width:none;height:52%;border-left:0;border-top:1px solid var(--edge)}
+    .left{height:48%}
   }
 </style>
 </head>
@@ -36,11 +41,12 @@
   <b>Test Console</b>
   <label>device <input id="dev"></label>
   <label>encoder <input id="eip"></label>
-  <small>edit + Enter to reload</small>
+  <small>drag the bar under the video to resize</small>
 </header>
 <main>
-  <div class="left">
+  <div class="left" id="left">
     <div class="video"><iframe id="vframe" allow="autoplay"></iframe></div>
+    <div class="vhandle" id="vhandle" title="drag to resize"></div>
     <div class="console"><iframe id="cframe"></iframe></div>
   </div>
   <div class="right"><iframe id="pframe" allow="gamepad"></iframe></div>
@@ -59,6 +65,26 @@
   catch(_){ $('dev').value=DEF.d; $('eip').value=DEF.e; }
   $('dev').onkeydown=$('eip').onkeydown=e=>{ if(e.key==='Enter') load(); };
   load();
+
+  // --- draggable video/console divider ---
+  const video=document.querySelector('.video'), left=$('left'), handle=$('vhandle');
+  try{ const h=localStorage.getItem('tc_vh'); if(h) video.style.height=h; }catch(_){}
+  let dragging=false;
+  handle.addEventListener('pointerdown',e=>{
+    dragging=true; document.body.classList.add('drag');
+    try{handle.setPointerCapture(e.pointerId)}catch(_){} e.preventDefault();
+  });
+  handle.addEventListener('pointermove',e=>{
+    if(!dragging) return;
+    const r=left.getBoundingClientRect();
+    let h=e.clientY - r.top - 4;                       // minus half the handle
+    h=Math.max(80, Math.min(r.height-120, h));         // clamp
+    video.style.height=h+'px';
+  });
+  const end=()=>{ if(!dragging)return; dragging=false; document.body.classList.remove('drag');
+                  try{localStorage.setItem('tc_vh',video.style.height)}catch(_){} };
+  handle.addEventListener('pointerup',end);
+  handle.addEventListener('pointercancel',end);
 </script>
 </body>
 </html>
