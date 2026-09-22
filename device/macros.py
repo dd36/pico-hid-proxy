@@ -167,6 +167,8 @@ class _Player:
         self.name = None
         self.loop = False
         self.iteration = 0
+        self.step = 0
+        self.total = 0
         self._dispatch = None
         self._log = None
         self._release = None
@@ -200,6 +202,8 @@ class _Player:
         self.name = name
         self.loop = loop
         self.iteration = 0
+        self.step = 0
+        self.total = len(steps)
         self.task = asyncio.create_task(self._run(steps))
         return "OK macro '{}' started{}".format(name, " (loop)" if loop else "")
 
@@ -216,8 +220,9 @@ class _Player:
     def status(self):
         if not self.is_running():
             return "macro: not running"
-        return "macro: running '{}'{} (iteration {})".format(
-            self.name, " loop" if self.loop else "", self.iteration
+        return "macro: running '{}'{} (iteration {}, step {}/{})".format(
+            self.name, " loop" if self.loop else "", self.iteration,
+            self.step, self.total
         )
 
     def _release_all(self):
@@ -232,7 +237,9 @@ class _Player:
         try:
             while True:
                 self.iteration += 1
+                self.step = 0
                 for kind, value in steps:
+                    self.step += 1
                     if kind == _SLEEP:
                         await asyncio.sleep_ms(value)
                     else:

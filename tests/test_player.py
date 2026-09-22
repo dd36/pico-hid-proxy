@@ -54,6 +54,7 @@ async def scenario():
     check("start ok", r.startswith("OK"), r)
     check("is_running", macros.player.is_running())
     check("status shows name", "gold1" in macros.player.status(), macros.player.status())
+    check("status shows step X/Y", "step " in macros.player.status(), macros.player.status())
     await asyncio.sleep(0.3)
     check("ran all 3 hid steps", executed == ["key_down", "key_up", "key_tap"], executed)
     check("released after finish", len(released) == 1, released)
