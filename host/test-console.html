@@ -11,24 +11,24 @@
   body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);
        height:100vh;display:flex;flex-direction:column;overflow:hidden}
   body.drag{cursor:row-resize;user-select:none}
-  body.drag iframe{pointer-events:none}          /* let the splitter get the mouse */
+  body.drag iframe{pointer-events:none}
   header{display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--panel);
          border-bottom:1px solid var(--edge);flex:none;flex-wrap:wrap}
   header b{color:var(--accent);font-size:14px}
   header label{color:var(--dim);font-size:12px}
   header input{background:var(--bg);color:var(--fg);border:1px solid var(--edge);border-radius:4px;
               padding:4px 6px;font-size:12px;font-family:monospace;width:150px}
-  header small{color:var(--dim);font-size:11px}
+  header #vstat{font-size:11px;color:var(--dim)}
   main{flex:1;display:flex;min-height:0}
   .left{flex:1;min-width:0;display:flex;flex-direction:column}
   .video{flex:none;width:100%;height:38vh;background:#000;position:relative;overflow:hidden}
+  .video video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
   .vhandle{flex:none;height:8px;background:var(--edge);cursor:row-resize;
            border-top:1px solid #000;border-bottom:1px solid #000}
   .vhandle:hover{background:var(--accent)}
   .console{flex:1;min-height:0}
   .right{width:540px;max-width:48vw;flex:none;border-left:1px solid var(--edge);background:var(--panel)}
   iframe{width:100%;height:100%;border:0;display:block}
-  .video iframe{position:absolute;inset:0}
   @media(max-width:760px){
     main{flex-direction:column}
     .right{width:100%;max-width:none;height:52%;border-left:0;border-top:1px solid var(--edge)}
@@ -41,50 +41,73 @@
   <b>Test Console</b>
   <label>device <input id="dev"></label>
   <label>encoder <input id="eip"></label>
-  <small>drag the bar under the video to resize</small>
+  <span id="vstat">video: …</span>
 </header>
 <main>
   <div class="left" id="left">
-    <div class="video"><iframe id="vframe" allow="autoplay"></iframe></div>
+    <div class="video"><video id="video" autoplay playsinline muted></video></div>
     <div class="vhandle" id="vhandle" title="drag to resize"></div>
     <div class="console"><iframe id="cframe"></iframe></div>
   </div>
   <div class="right"><iframe id="pframe" allow="gamepad"></iframe></div>
 </main>
 <script>
-  const DEF = { d:'192.168.49.113', e:'192.168.49.103' };
+  const DEF={ d:'192.168.49.113', e:'192.168.49.103' };
   const $=id=>document.getElementById(id);
-  function load(){
-    const d=$('dev').value, e=$('eip').value;
-    $('vframe').src='http://'+e+'/webrtc.html?group=0&stream=0';  // low-latency feed
-    $('pframe').src='http://'+d+'/';                              // control pad (right)
-    $('cframe').src='http://'+d+'/console';                       // command console (bottom-left)
-    try{ localStorage.setItem('tc_d',d); localStorage.setItem('tc_e',e); }catch(_){}
-  }
   try{ $('dev').value=localStorage.getItem('tc_d')||DEF.d; $('eip').value=localStorage.getItem('tc_e')||DEF.e; }
   catch(_){ $('dev').value=DEF.d; $('eip').value=DEF.e; }
-  $('dev').onkeydown=$('eip').onkeydown=e=>{ if(e.key==='Enter') load(); };
-  load();
+
+  function loadPanels(){
+    const d=$('dev').value;
+    $('pframe').src='http://'+d+'/';           // control pad (right)
+    $('cframe').src='http://'+d+'/console';     // command console (bottom-left)
+    try{ localStorage.setItem('tc_d',d); }catch(_){}
+  }
+
+  // --- clean WebRTC pull: our own <video>, replicating the encoder's SDP POST ---
+  let pc=null, vtry=0;
+  async function connectVideo(){
+    const e=$('eip').value;
+    try{ localStorage.setItem('tc_e',e); }catch(_){}
+    try{ if(pc) pc.close(); }catch(_){}
+    $('vstat').textContent='video: connecting…';
+    pc=new RTCPeerConnection({iceServers:[]});
+    pc.addTransceiver('video',{direction:'recvonly'});
+    pc.addTransceiver('audio',{direction:'recvonly'});
+    pc.ontrack=ev=>{ if(ev.streams&&ev.streams[0]){ $('video').srcObject=ev.streams[0];
+                     $('video').play().catch(()=>{}); $('vstat').textContent='video: live'; } };
+    pc.oniceconnectionstatechange=()=>{
+      const st=pc.iceConnectionState;
+      if(st==='failed'||st==='disconnected'||st==='closed'){
+        $('vstat').textContent='video: reconnecting…'; clearTimeout(vtry); vtry=setTimeout(connectVideo,3000);
+      }
+    };
+    try{
+      const offer=await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      const r=await fetch('http://'+e+'/webrtc_stream?group=0&stream=0&action=offer',
+                          {method:'POST',body:pc.localDescription.sdp});   // default text/plain, no preflight
+      const ans=await r.json();
+      await pc.setRemoteDescription({type:'answer',sdp:ans.sdp});
+    }catch(err){ $('vstat').textContent='video: no encoder'; clearTimeout(vtry); vtry=setTimeout(connectVideo,3000); }
+  }
+
+  $('dev').onkeydown=e=>{ if(e.key==='Enter') loadPanels(); };
+  $('eip').onkeydown=e=>{ if(e.key==='Enter') connectVideo(); };
+  loadPanels(); connectVideo();
 
   // --- draggable video/console divider ---
   const video=document.querySelector('.video'), left=$('left'), handle=$('vhandle');
   try{ const h=localStorage.getItem('tc_vh'); if(h) video.style.height=h; }catch(_){}
   let dragging=false;
-  handle.addEventListener('pointerdown',e=>{
-    dragging=true; document.body.classList.add('drag');
-    try{handle.setPointerCapture(e.pointerId)}catch(_){} e.preventDefault();
-  });
-  handle.addEventListener('pointermove',e=>{
-    if(!dragging) return;
-    const r=left.getBoundingClientRect();
-    let h=e.clientY - r.top - 4;                       // minus half the handle
-    h=Math.max(80, Math.min(r.height-120, h));         // clamp
-    video.style.height=h+'px';
-  });
+  handle.addEventListener('pointerdown',e=>{dragging=true;document.body.classList.add('drag');
+    try{handle.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault();});
+  handle.addEventListener('pointermove',e=>{ if(!dragging)return;
+    const r=left.getBoundingClientRect(); let h=e.clientY-r.top-4;
+    h=Math.max(80,Math.min(r.height-120,h)); video.style.height=h+'px'; });
   const end=()=>{ if(!dragging)return; dragging=false; document.body.classList.remove('drag');
-                  try{localStorage.setItem('tc_vh',video.style.height)}catch(_){} };
-  handle.addEventListener('pointerup',end);
-  handle.addEventListener('pointercancel',end);
+    try{localStorage.setItem('tc_vh',video.style.height)}catch(_){} };
+  handle.addEventListener('pointerup',end); handle.addEventListener('pointercancel',end);
 </script>
 </body>
 </html>
